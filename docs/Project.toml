@@ -1,0 +1,3 @@
+[deps]
+DecisionFocusedLearningAlgorithms = "46d52364-bc3b-4fac-a992-eb1d3ef2de15"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
