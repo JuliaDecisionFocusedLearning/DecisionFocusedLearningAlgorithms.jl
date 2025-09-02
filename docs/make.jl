@@ -1,7 +1,23 @@
 using DecisionFocusedLearningAlgorithms
 using Documenter
 
-DocMeta.setdocmeta!(DecisionFocusedLearningAlgorithms, :DocTestSetup, :(using DecisionFocusedLearningAlgorithms); recursive=true)
+DocMeta.setdocmeta!(
+    DecisionFocusedLearningAlgorithms,
+    :DocTestSetup,
+    :(using DecisionFocusedLearningAlgorithms);
+    recursive=true,
+)
+
+tutorial_dir = joinpath(@__DIR__, "src", "tutorials")
+
+include_tutorial = true
+
+if include_tutorial
+    for file in tutorial_files
+        filepath = joinpath(tutorial_dir, file)
+        Literate.markdown(filepath, md_dir; documenter=true, execute=false)
+    end
+end
 
 makedocs(;
     modules=[DecisionFocusedLearningAlgorithms],
@@ -12,9 +28,7 @@ makedocs(;
         edit_link="main",
         assets=String[],
     ),
-    pages=[
-        "Home" => "index.md",
-    ],
+    pages=["Home" => "index.md", "Tutorials" => include_tutorial ? md_tutorial_files : []],
 )
 
 deploydocs(;
