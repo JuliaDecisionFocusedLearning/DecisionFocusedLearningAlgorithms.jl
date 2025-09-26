@@ -1,7 +1,12 @@
 using DecisionFocusedLearningAlgorithms
 using Documenter
 
-DocMeta.setdocmeta!(DecisionFocusedLearningAlgorithms, :DocTestSetup, :(using DecisionFocusedLearningAlgorithms); recursive=true)
+DocMeta.setdocmeta!(
+    DecisionFocusedLearningAlgorithms,
+    :DocTestSetup,
+    :(using DecisionFocusedLearningAlgorithms);
+    recursive=true,
+)
 
 makedocs(;
     modules=[DecisionFocusedLearningAlgorithms],
@@ -12,9 +17,7 @@ makedocs(;
         edit_link="main",
         assets=String[],
     ),
-    pages=[
-        "Home" => "index.md",
-    ],
+    pages=["Home" => "index.md"],
 )
 
 deploydocs(;
