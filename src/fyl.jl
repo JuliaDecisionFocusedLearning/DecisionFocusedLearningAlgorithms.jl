@@ -1,5 +1,6 @@
 # TODO: every N epochs
 # TODO: best_model saving method, using default metric validation loss, overwritten in dagger
+# TODO: Implement validation loss as a metric callback
 
 function fyl_train_model!(
     model,
