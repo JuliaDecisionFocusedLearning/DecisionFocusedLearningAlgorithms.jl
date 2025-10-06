@@ -12,6 +12,7 @@ ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [compat]
+DecisionFocusedLearningBenchmarks = "0.3.0"
 Flux = "0.16.5"
 InferOpt = "0.7.1"
 MLUtils = "0.4.8"

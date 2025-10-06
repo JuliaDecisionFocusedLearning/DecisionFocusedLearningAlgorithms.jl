@@ -2,6 +2,14 @@ using DecisionFocusedLearningAlgorithms
 using DecisionFocusedLearningBenchmarks
 using MLUtils
 using Statistics
+using Plots
+
+res = fyl_train_model(ArgmaxBenchmark(); epochs=10_000)
+plot(res.validation_loss[100:end]; label="Validation Loss")
+plot!(res.training_loss[100:end]; label="Training Loss")
+
+baty_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
+DAgger_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
 
 struct KleopatraPolicy{M}
     model::M
@@ -12,10 +20,6 @@ function (m::KleopatraPolicy)(env)
     θ = m.model(x)
     return maximizer(θ; instance)
 end
-
-fyl_train_model(ArgmaxBenchmark(); epochs=1000)
-baty_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
-DAgger_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
 
 b = DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false)
 dataset = generate_dataset(b, 100)
