@@ -67,9 +67,7 @@ end
 
 function DAgger_train_model(b::AbstractStochasticBenchmark{true}; kwargs...)
     dataset = generate_dataset(b, 30)
-    train_instances, validation_instances, test_instances = dataset[1:10],
-    dataset[11:20],
-    dataset[21:30]
+    train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))
     train_environments = generate_environments(b, train_instances; seed=0)
     validation_environments = generate_environments(b, validation_instances)
     model = generate_statistical_model(b)

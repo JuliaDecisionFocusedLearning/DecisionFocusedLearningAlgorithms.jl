@@ -4,9 +4,9 @@ using MLUtils
 using Statistics
 using Plots
 
-res = fyl_train_model(ArgmaxBenchmark(); epochs=10_000)
-plot(res.validation_loss[100:end]; label="Validation Loss")
-plot!(res.training_loss[100:end]; label="Training Loss")
+res = fyl_train_model(StochasticVehicleSchedulingBenchmark(); epochs=100)
+plot(res.validation_loss; label="Validation Loss")
+plot!(res.training_loss; label="Training Loss")
 
 baty_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
 DAgger_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))

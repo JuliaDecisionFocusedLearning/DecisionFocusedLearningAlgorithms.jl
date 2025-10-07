@@ -3,6 +3,8 @@
 # TODO: Implement validation loss as a metric callback
 # TODO: batch training option
 # TODO: parallelize loss computation on validation set
+# TODO: have supervised learning training method, where fyl_train calls it, therefore we can easily test new supervised losses if needed
+# TODO: easier way to define and provide metrics
 
 function fyl_train_model!(
     model,
@@ -13,7 +15,7 @@ function fyl_train_model!(
     maximizer_kwargs=(sample -> (; instance=sample.info)),
     metrics_callbacks::NamedTuple=NamedTuple(),
 )
-    perturbed = PerturbedAdditive(maximizer; nb_samples=50, ε=1.0, threaded=true, seed=0)
+    perturbed = PerturbedAdditive(maximizer; nb_samples=50, ε=0.0, threaded=true, seed=0)
     loss = FenchelYoungLoss(perturbed)
 
     optimizer = Adam()
@@ -86,7 +88,7 @@ function fyl_train_model!(
 end
 
 function fyl_train_model(b::AbstractBenchmark; kwargs...)
-    dataset = generate_dataset(b, 100)
+    dataset = generate_dataset(b, 20)
     train_dataset, validation_dataset, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))
     model = generate_statistical_model(b)
     maximizer = generate_maximizer(b)
