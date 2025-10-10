@@ -87,6 +87,14 @@ function fyl_train_model!(
     return metrics_history
 end
 
+function fyl_train_model(
+    initial_model, maximizer, train_dataset, validation_dataset; kwargs...
+)
+    model = deepcopy(initial_model)
+    return fyl_train_model!(model, maximizer, train_dataset, validation_dataset; kwargs...),
+    model
+end
+
 function fyl_train_model(b::AbstractBenchmark; kwargs...)
     dataset = generate_dataset(b, 20)
     train_dataset, validation_dataset, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))

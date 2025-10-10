@@ -4,6 +4,17 @@ using MLUtils
 using Statistics
 using Plots
 
+# ! metric(prediction, data_sample)
+
+b = ArgmaxBenchmark()
+initial_model = generate_statistical_model(b)
+maximizer = generate_maximizer(b)
+dataset = generate_dataset(b, 100)
+train_dataset, val_dataset, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))
+res, model = fyl_train_model(
+    initial_model, maximizer, train_dataset, val_dataset; epochs=100
+)
+
 res = fyl_train_model(StochasticVehicleSchedulingBenchmark(); epochs=100)
 plot(res.validation_loss; label="Validation Loss")
 plot!(res.training_loss; label="Training Loss")
