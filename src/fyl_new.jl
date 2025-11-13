@@ -9,7 +9,7 @@ function fyl_train_model!(
     maximizer_kwargs=(sample -> (; instance=sample.info)),
     callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
 )
-    perturbed = PerturbedAdditive(maximizer; nb_samples=50, ε=0.1, threaded=true)
+    perturbed = PerturbedAdditive(maximizer; nb_samples=10, ε=0.1, threaded=true)
     loss = FenchelYoungLoss(perturbed)
 
     optimizer = Adam()
@@ -90,4 +90,46 @@ function fyl_train_model(
     model = deepcopy(initial_model)
     return fyl_train_model!(model, maximizer, train_dataset, validation_dataset; kwargs...),
     model
+end
+
+function baty_train_model(
+    b::AbstractStochasticBenchmark{true};
+    epochs=10,
+    callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
+)
+    # Generate instances and environments
+    dataset = generate_dataset(b, 30)
+    train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3))
+    train_environments = generate_environments(b, train_instances)
+    validation_environments = generate_environments(b, validation_instances)
+
+    # Generate anticipative solutions
+    train_dataset = vcat(
+        map(train_environments) do env
+            v, y = generate_anticipative_solution(b, env; reset_env=true)
+            return y
+        end...
+    )
+
+    val_dataset = vcat(map(validation_environments) do env
+        v, y = generate_anticipative_solution(b, env; reset_env=true)
+        return y
+    end...)
+
+    # Initialize model and maximizer
+    model = generate_statistical_model(b)
+    maximizer = generate_maximizer(b)
+
+    # Train with callbacks
+    history = fyl_train_model!(
+        model,
+        maximizer,
+        train_dataset,
+        val_dataset;
+        epochs=epochs,
+        callbacks=callbacks,
+        maximizer_kwargs=(sample -> (; instance=sample.info.state)),
+    )
+
+    return history, model
 end
