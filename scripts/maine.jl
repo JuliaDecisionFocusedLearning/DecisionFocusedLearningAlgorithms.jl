@@ -21,7 +21,7 @@ function (p::DFLPolicy)(env)
     return DVSP.decode_bitmatrix_to_routes(y)
 end
 
-b = DynamicVehicleSchedulingBenchmark(; max_requests_per_epoch=50)
+b = DynamicVehicleSchedulingBenchmark(; max_requests_per_epoch=10)
 
 dataset = generate_dataset(b, 100)
 train_instances, validation_instances, test_instances = splitobs(dataset; at=(0.3, 0.3))
@@ -68,6 +68,7 @@ callbacks = [
         on=validation_environments,
     ),
 ];
+typeof(callbacks)
 
 history = fyl_train_model!(
     model,
@@ -79,7 +80,7 @@ history = fyl_train_model!(
     callbacks=callbacks,
 )
 
-JLD2.jldsave(joinpath(@__DIR__, "logs_2.jld2"); model=model, history=history)
+# JLD2.jldsave(joinpath(@__DIR__, "logs_2.jld2"); model=model, history=history)
 
 epochs, train_losses = get(history, :training_loss)
 epochs, val_losses = get(history, :validation_loss)
@@ -127,7 +128,7 @@ mean(
 env = test_environments[4]
 vv, data = evaluate_policy!(policy, env)
 fig = DVSP.plot_epochs(data)
-savefig(fig, "dfl_policy_example.png")
+# savefig(fig, "dfl_policy_example.png")
 
 vva, y = generate_anticipative_solution(b, env; reset_env=true)
 DVSP.plot_epochs(y)

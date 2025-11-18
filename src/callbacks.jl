@@ -8,16 +8,54 @@ to compute metrics, log information, or modify training behavior.
 Implement `on_epoch_end` for your callback type:
 - `on_epoch_end(callback, context)` - called after each training epoch
 
-# Context
-The context is a NamedTuple containing:
-- `epoch::Int` - current epoch number
-- `model` - the model being trained
-- `maximizer` - the maximizer/solver
-- `train_dataset` - training data
-- `validation_dataset` - validation data
+# Context Structure
 
-Note: Training and validation losses are automatically stored in the returned MVHistory,
-so they don't need to be in the context.
+All training algorithms provide a context NamedTuple with the following **core fields**:
+
+## Required Fields (Always Present)
+- `epoch::Int` - Current epoch number (0-indexed, where 0 is pre-training)
+- `model` - The model being trained
+- `maximizer` - The optimization solver/maximizer
+- `train_dataset` - Training dataset
+- `validation_dataset` - Validation dataset
+- `train_loss::Float64` - Average training loss for this epoch
+- `val_loss::Float64` - Average validation loss for this epoch
+
+## Optional Fields (Algorithm-Specific)
+Different algorithms may provide additional fields. Check with `haskey(context, :field_name)`:
+
+**DAgger-Specific:**
+- `α::Float64` - Expert/learner mixing parameter
+- `dagger_iteration::Int` - Current DAgger iteration
+- `expert_policy` - Expert policy function
+- `train_environments` - Training environments
+- `validation_environments` - Validation environments
+
+**Future Algorithms:**
+Other algorithms (SPO+, IntOpt, etc.) will add their own specific fields as needed.
+
+# Writing Portable Metrics
+
+To write metrics that work across all algorithms, use only the core fields:
+
+```julia
+# Works with any algorithm
+Metric(:gap, ctx -> compute_gap(benchmark, ctx.validation_dataset, ctx.model, ctx.maximizer))
+
+# Works with any algorithm
+Metric(:loss_ratio, ctx -> ctx.val_loss / ctx.train_loss; on=:none)
+```
+
+To write algorithm-specific metrics, check for optional fields:
+
+```julia
+# DAgger-specific metric
+Metric(:alpha, ctx -> haskey(ctx, :α) ? ctx.α : NaN; on=:none)
+```
+
+# See Also
+- [`Metric`](@ref) - Generic callback for computing metrics
+- [`on_epoch_end`](@ref) - Callback interface method
 """
 abstract type TrainingCallback end
 
@@ -42,7 +80,7 @@ function on_epoch_end(cb::MyCallback, context)
 end
 ```
 """
-function on_epoch_end(callback::TrainingCallback, context)
+function on_epoch_end(::TrainingCallback, context)
     return nothing
 end
 

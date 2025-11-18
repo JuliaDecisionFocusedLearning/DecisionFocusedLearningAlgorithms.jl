@@ -58,22 +58,24 @@ anticipative_policy = (env; reset_env) -> generate_anticipative_solution(b, env;
 fyl_model = deepcopy(model)
 fyl_policy = Policy("fyl", "", KleopatraPolicy(fyl_model))
 
-metrics_callbacks = (;
-    obj=(model, maximizer, epoch) ->
-        mean(evaluate_policy!(fyl_policy, test_environments, 1)[1])
-)
+callbacks = [
+    Metric(:obj, (data, ctx) -> mean(evaluate_policy!(fyl_policy, test_environments, 1)[1]))
+]
 
-fyl_loss = fyl_train_model!(
-    fyl_model, maximizer, train_dataset, val_dataset; epochs=100, metrics_callbacks
+fyl_history = fyl_train_model!(
+    fyl_model, maximizer, train_dataset, val_dataset; epochs=100, callbacks
 )
 
 dagger_model = deepcopy(model)
 dagger_policy = Policy("dagger", "", KleopatraPolicy(dagger_model))
-metrics_callbacks = (;
-    obj=(model, maximizer, epoch) ->
-        mean(evaluate_policy!(dagger_policy, test_environments, 1)[1])
-)
-dagger_loss = DAgger_train_model!(
+
+callbacks = [
+    Metric(
+        :obj, (data, ctx) -> mean(evaluate_policy!(dagger_policy, test_environments, 1)[1])
+    ),
+]
+
+dagger_history = DAgger_train_model!(
     dagger_model,
     maximizer,
     train_environments,
@@ -81,12 +83,16 @@ dagger_loss = DAgger_train_model!(
     anticipative_policy;
     iterations=10,
     fyl_epochs=10,
-    metrics_callbacks,
+    callbacks=callbacks,
 )
 
+# Extract metric values for plotting
+fyl_epochs, fyl_obj_values = get(fyl_history, :val_obj)
+dagger_epochs, dagger_obj_values = get(dagger_history, :val_obj)
+
 plot(
-    0:100,
-    [fyl_loss.obj[1:end], dagger_loss.obj[1:end]];
+    [fyl_epochs, dagger_epochs],
+    [fyl_obj_values, dagger_obj_values];
     labels=["FYL" "DAgger"],
     xlabel="Epoch",
     ylabel="Test Average Reward (1 scenario)",
