@@ -32,7 +32,7 @@ Different algorithms may provide additional fields. Check with `haskey(context, 
 - `validation_environments` - Validation environments
 
 **Future Algorithms:**
-Other algorithms (SPO+, IntOpt, etc.) will add their own specific fields as needed.
+Other algorithms will add their own specific fields as needed.
 
 # Writing Portable Metrics
 
