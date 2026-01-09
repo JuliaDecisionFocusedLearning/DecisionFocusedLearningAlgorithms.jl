@@ -17,15 +17,14 @@ using ValueHistories
 
         # Test basic training runs without error
         history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, callbacks=TrainingCallback[]
+            model, maximizer, train_data, val_data; epochs=3, metrics=()
         )
 
         # Check that history is returned
         @test history isa MVHistory
 
-        # Check that losses are tracked
+        # Check that training loss is tracked
         @test haskey(history, :training_loss)
-        @test haskey(history, :validation_loss)
 
         # Check epochs (0-indexed: 0, 1, 2, 3)
         train_epochs, train_losses = get(history, :training_loss)
@@ -41,92 +40,73 @@ using ValueHistories
         @test all(isa(l, Float64) for l in val_losses)
     end
 
-    @testset "FYL Training - With Callbacks" begin
+    @testset "FYL Training - With Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
 
-        # Create simple callbacks
-        callbacks = [
-            Metric(
-                :gap, (data, ctx) -> compute_gap(benchmark, data, ctx.model, ctx.maximizer)
-            ),
-            Metric(:epoch, (data, ctx) -> ctx.epoch; on=:none),
-        ]
+        # Create loss metric using FenchelYoungLoss
+        using InferOpt: FenchelYoungLoss, PerturbedAdditive
+        perturbed = PerturbedAdditive(maximizer; nb_samples=10, ε=0.1)
+        loss = FenchelYoungLoss(perturbed)
+        val_loss_metric = FYLLossMetric(loss, val_data, :validation_loss)
+
+        # Create custom function metrics
+        epoch_metric = FunctionMetric(:epoch, ctx -> ctx.epoch)
+
+        # Create metric with stored data
+        gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
+            compute_gap(benchmark, data, ctx.model, ctx.maximizer)
+        end
+
+        metrics = (val_loss_metric, epoch_metric, gap_metric)
 
         history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, callbacks=callbacks
+            model, maximizer, train_data, val_data; epochs=3, metrics=metrics
         )
 
-        # Check callback metrics are recorded
-        @test haskey(history, :val_gap)
+        # Check metrics are recorded
+        @test haskey(history, :validation_loss)
         @test haskey(history, :epoch)
+        @test haskey(history, :val_gap)
 
-        # Check gap values exist
-        gap_epochs, gap_values = get(history, :val_gap)
-        @test length(gap_epochs) == 4  # epoch 0 + 3 epochs
-        @test all(isa(g, AbstractFloat) for g in gap_values)
+        # Check validation loss values
+        val_epochs, val_values = get(history, :validation_loss)
+        @test length(val_epochs) == 4  # epoch 0 + 3 epochs
+        @test all(isa(v, AbstractFloat) for v in val_values)
 
         # Check epoch tracking
         epoch_epochs, epoch_values = get(history, :epoch)
         @test epoch_values == [0, 1, 2, 3]
-    end
 
-    @testset "FYL Training - Callback on=:both" begin
-        model = generate_statistical_model(benchmark)
-        maximizer = generate_maximizer(benchmark)
-
-        callbacks = [
-            Metric(
-                :gap,
-                (data, ctx) -> compute_gap(benchmark, data, ctx.model, ctx.maximizer);
-                on=:both,
-            ),
-        ]
-
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=2, callbacks=callbacks
-        )
-
-        # Check both train and val metrics exist
-        @test haskey(history, :train_gap)
-        @test haskey(history, :val_gap)
-
-        train_gap_epochs, train_gap_values = get(history, :train_gap)
-        val_gap_epochs, val_gap_values = get(history, :val_gap)
-
-        @test length(train_gap_epochs) == 3  # epoch 0, 1, 2
-        @test length(val_gap_epochs) == 3
+        # Check gap tracking
+        gap_epochs, gap_values = get(history, :val_gap)
+        @test length(gap_epochs) == 4
+        @test all(isa(g, AbstractFloat) for g in gap_values)
     end
 
     @testset "FYL Training - Context Fields" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
 
-        # Callback that checks context structure
-        context_checker = Metric(
-            :context_check,
-            (data, ctx) -> begin
-                # Check all required core fields exist
-                @test haskey(ctx, :epoch)
-                @test haskey(ctx, :model)
-                @test haskey(ctx, :maximizer)
-                @test haskey(ctx, :train_dataset)
-                @test haskey(ctx, :validation_dataset)
-                @test haskey(ctx, :train_loss)
-                @test haskey(ctx, :val_loss)
+        # Metric that checks context structure
+        context_checker = FunctionMetric(
+            :context_check, (ctx) -> begin
+                # Check required core fields exist
+                @test hasproperty(ctx, :epoch)
+                @test hasproperty(ctx, :model)
+                @test hasproperty(ctx, :maximizer)
 
                 # Check types
                 @test ctx.epoch isa Int
-                @test ctx.train_loss isa Float64
-                @test ctx.val_loss isa Float64
+                @test ctx.model !== nothing
+                @test ctx.maximizer isa Function
 
                 return 1.0  # dummy value
-            end;
-            on=:none,
+            end
         )
 
         history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=2, callbacks=[context_checker]
+            model, maximizer, train_data, val_data; epochs=2, metrics=(context_checker,)
         )
 
         @test haskey(history, :context_check)
@@ -146,52 +126,19 @@ using ValueHistories
 
         # Check history structure
         @test haskey(history, :training_loss)
-        @test haskey(history, :validation_loss)
     end
 
-    @testset "Callback Error Handling" begin
+    @testset "Multiple Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
 
-        # Create a callback that fails
-        failing_callback = Metric(
-            :failing, (data, ctx) -> begin
-                error("Intentional error for testing")
-            end
-        )
-
-        # Should not crash, just warn
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=2, callbacks=[failing_callback]
-        )
-
-        # Training should complete
-        @test history isa MVHistory
-        @test haskey(history, :training_loss)
-
-        # Failed metric should not be in history
-        @test !haskey(history, :val_failing)
-    end
-
-    @testset "Multiple Callbacks" begin
-        model = generate_statistical_model(benchmark)
-        maximizer = generate_maximizer(benchmark)
-
-        callbacks = [
-            Metric(
-                :gap, (data, ctx) -> compute_gap(benchmark, data, ctx.model, ctx.maximizer)
-            ),
-            Metric(:loss_ratio, (data, ctx) -> ctx.val_loss / ctx.train_loss; on=:none),
-            Metric(:epoch_squared, (data, ctx) -> Float64(ctx.epoch^2); on=:none),
-        ]
+        metrics = (FunctionMetric(:epoch_squared, ctx -> Float64(ctx.epoch^2)),)
 
         history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, callbacks=callbacks
+            model, maximizer, train_data, val_data; epochs=3, metrics=metrics
         )
 
-        # All metrics should be tracked
-        @test haskey(history, :val_gap)
-        @test haskey(history, :loss_ratio)
+        # Metric should be tracked
         @test haskey(history, :epoch_squared)
 
         # Check epoch_squared values

@@ -7,7 +7,7 @@ function DAgger_train_model!(
     anticipative_policy;
     iterations=5,
     fyl_epochs=3,
-    callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
+    metrics::Tuple=(),
     maximizer_kwargs=get_state,
 )
     α = 1.0
@@ -36,7 +36,7 @@ function DAgger_train_model!(
             dataset,
             val_dataset;
             epochs=fyl_epochs,
-            callbacks=callbacks,
+            metrics=metrics,
             maximizer_kwargs=maximizer_kwargs,
         )
 

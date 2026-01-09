@@ -1,13 +1,14 @@
 name = "DecisionFocusedLearningAlgorithms"
 uuid = "46d52364-bc3b-4fac-a992-eb1d3ef2de15"
-authors = ["Members of JuliaDecisionFocusedLearning and contributors"]
 version = "0.1.0"
+authors = ["Members of JuliaDecisionFocusedLearning and contributors"]
 
 [workspace]
 projects = ["docs", "test"]
 
 [deps]
 DecisionFocusedLearningBenchmarks = "2fbe496a-299b-4c81-bab5-c44dfc55cf20"
+DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 InferOpt = "4846b161-c94e-4150-8dac-c7ae193c601f"
 MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
@@ -19,6 +20,7 @@ ValueHistories = "98cad3c8-aec3-5f06-8e41-884608649ab7"
 
 [compat]
 DecisionFocusedLearningBenchmarks = "0.4"
+DocStringExtensions = "0.9.5"
 Flux = "0.16.5"
 InferOpt = "0.7.1"
 MLUtils = "0.4.8"

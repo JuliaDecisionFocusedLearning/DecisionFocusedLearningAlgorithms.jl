@@ -21,12 +21,11 @@
             anticipative_policy;
             iterations=2,
             fyl_epochs=2,
-            callbacks=TrainingCallback[],
+            metrics=(),
         )
 
         @test history isa MVHistory
         @test haskey(history, :training_loss)
-        @test haskey(history, :validation_loss)
 
         # Check epoch progression across DAgger iterations
         # 2 iterations × 2 fyl_epochs = 4 total epochs (plus epoch 0)
@@ -34,13 +33,13 @@
         @test maximum(train_epochs) == 4  # epochs 0, 1, 2, 3, 4
     end
 
-    @testset "DAgger - With Callbacks" begin
+    @testset "DAgger - With Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
         anticipative_policy =
             (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
 
-        callbacks = [Metric(:epoch, (data, ctx) -> ctx.epoch; on=:none)]
+        metrics = (FunctionMetric(:epoch, ctx -> ctx.epoch),)
 
         history = DAgger_train_model!(
             model,
@@ -50,7 +49,7 @@
             anticipative_policy;
             iterations=2,
             fyl_epochs=2,
-            callbacks=callbacks,
+            metrics=metrics,
         )
 
         @test haskey(history, :epoch)
@@ -63,7 +62,7 @@
     @testset "DAgger - Convenience Function" begin
         # Test the benchmark-based convenience function
         history, model = DAgger_train_model(
-            benchmark; iterations=2, fyl_epochs=2, callbacks=TrainingCallback[]
+            benchmark; iterations=2, fyl_epochs=2, metrics=()
         )
 
         @test history isa MVHistory

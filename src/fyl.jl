@@ -10,12 +10,24 @@
     ε::Float64 = 0.1
     threaded::Bool = true
     training_optimizer::O = Adam()
-    history::MVHistory = MVHistory()
+end
+
+function FYLLossMetric(
+    algorithm::PerturbedImitationAlgorithm, dataset, name::Symbol, maximizer
+)
+    perturbed = PerturbedAdditive(
+        maximizer;
+        nb_samples=algorithm.nb_samples,
+        ε=algorithm.ε,
+        threaded=algorithm.threaded,
+    )
+    loss = FenchelYoungLoss(perturbed)
+    return FYLLossMetric(loss, dataset, name)
 end
 
 reset!(algorithm::PerturbedImitationAlgorithm) = empty!(algorithm.history)
 
-function train!(
+function train_policy!(
     algorithm::PerturbedImitationAlgorithm,
     model,
     maximizer,
@@ -23,83 +35,71 @@ function train!(
     validation_dataset;
     epochs=100,
     maximizer_kwargs=get_info,
-    callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
+    metrics::Tuple=(),
     reset=false,
 )
     reset && reset!(algorithm)
-    (; nb_samples, ε, threaded, training_optimizer, history) = algorithm
+    (; nb_samples, ε, threaded, training_optimizer) = algorithm
     perturbed = PerturbedAdditive(maximizer; nb_samples, ε, threaded)
     loss = FenchelYoungLoss(perturbed)
 
     opt_state = Flux.setup(training_optimizer, model)
 
-    # Compute initial losses
-    initial_val_loss = mean([
-        loss(model(sample.x), sample.y; maximizer_kwargs(sample)...) for
-        sample in validation_dataset
-    ])
-    initial_train_loss = mean([
-        loss(model(sample.x), sample.y; maximizer_kwargs(sample)...) for
-        sample in train_dataset
-    ])
+    history = MVHistory()
+
+    train_loss_metric = LossAccumulator(:training_loss)
 
     # Store initial losses (epoch 0)
-    push!(history, :training_loss, 0, initial_train_loss)
-    push!(history, :validation_loss, 0, initial_val_loss)
+    # Epoch 0
+    for sample in train_dataset
+        (; x, y) = sample
+        val = loss(model(x), y; maximizer_kwargs(sample)...)
+        update!(train_loss_metric, val)
+    end
+    push!(history, :training_loss, 0, compute(train_loss_metric))
+    reset!(train_loss_metric)
 
-    # Initial callback evaluation
-    context = TrainingContext(;
-        model=model,
-        epoch=0,
-        maximizer=maximizer,
-        train_dataset=train_dataset,
-        validation_dataset=validation_dataset,
-        train_loss=initial_train_loss,
-        val_loss=initial_val_loss,
-    )
-    run_callbacks!(history, callbacks, context)
+    # Initial metric evaluation
+    context = TrainingContext(; model=model, epoch=0, maximizer=maximizer)
+
+    # Evaluate all metrics
+    for metric in metrics
+        value = evaluate!(metric, context)
+        push!(history, metric.name, 0, value)
+    end
 
     @showprogress for epoch in 1:epochs
         # Training step
-        epoch_train_loss = 0.0
         for sample in train_dataset
             (; x, y) = sample
             val, grads = Flux.withgradient(model) do m
                 loss(m(x), y; maximizer_kwargs(sample)...)
             end
-            epoch_train_loss += val
             Flux.update!(opt_state, model, grads[1])
+            update!(train_loss_metric, val)
         end
-        avg_train_loss = epoch_train_loss / length(train_dataset)
 
-        # Validation step
-        epoch_val_loss = 0.0
-        for sample in validation_dataset
-            (; x, y) = sample
-            epoch_val_loss += loss(model(x), y; maximizer_kwargs(sample)...)
+        # Store training loss
+        push!(history, :training_loss, epoch, compute(train_loss_metric))
+        reset!(train_loss_metric)
+
+        # Evaluate all metrics
+        context = TrainingContext(; model=model, epoch=epoch, maximizer=maximizer)
+
+        for metric in metrics
+            value = evaluate!(metric, context)
+            push!(history, metric.name, epoch, value)
         end
-        avg_val_loss = epoch_val_loss / length(validation_dataset)
-
-        # Store losses
-        push!(history, :training_loss, epoch, avg_train_loss)
-        push!(history, :validation_loss, epoch, avg_val_loss)
-
-        # Run callbacks
-        context = TrainingContext(;
-            model=model,
-            epoch=epoch,
-            maximizer=maximizer,
-            train_dataset=train_dataset,
-            validation_dataset=validation_dataset,
-            train_loss=avg_train_loss,
-            val_loss=avg_val_loss,
-        )
-        run_callbacks!(history, callbacks, context)
     end
 
-    # Get validation loss values for plotting
-    a, b = get(history, :validation_loss)
-    println(lineplot(a, b; xlabel="Epoch", ylabel="Validation Loss"))
+    # Plot training loss (or first metric if available)
+    # if !isempty(metrics)
+    #     X, Y = get(history, metrics[1].name)
+    #     println(lineplot(X, Y; xlabel="Epoch", ylabel=string(metrics[1].name)))
+    # else
+    #     X, Y = get(history, :training_loss)
+    #     println(lineplot(X, Y; xlabel="Epoch", ylabel="Training Loss"))
+    # end
     return history
 end
 
@@ -114,7 +114,7 @@ end
 function baty_train_model(
     b::AbstractStochasticBenchmark{true};
     epochs=10,
-    callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
+    metrics::Tuple=(),
 )
     # Generate instances and environments
     dataset = generate_dataset(b, 30)
@@ -139,14 +139,14 @@ function baty_train_model(
     model = generate_statistical_model(b)
     maximizer = generate_maximizer(b)
 
-    # Train with callbacks
+    # Train with metrics
     history = fyl_train_model!(
         model,
         maximizer,
         train_dataset,
         val_dataset;
         epochs=epochs,
-        callbacks=callbacks,
+        metrics=metrics,
         maximizer_kwargs=get_state,
     )
 

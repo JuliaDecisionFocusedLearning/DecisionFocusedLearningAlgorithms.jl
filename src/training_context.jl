@@ -1,22 +1,24 @@
-struct TrainingContext{M,D,O}
+"""
+$TYPEDEF
+
+# Fields
+$TYPEDFIELDS
+"""
+struct TrainingContext{M,O}
+    "ML model"
     model::M
+    "Current epoch number"
     epoch::Int
+    "CO Maximizer function"
     maximizer::Function
-    train_dataset::D
-    validation_dataset::D
-    train_loss::Float64
-    val_loss::Float64
+    "Additional fields"
     other_fields::O
 end
 
 function TrainingContext(
     model,
     epoch,
-    maximizer,
-    train_dataset,
-    validation_dataset,
-    train_loss,
-    val_loss;
+    maximizer;
     kwargs...,
 )
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
@@ -24,10 +26,6 @@ function TrainingContext(
         model,
         epoch,
         maximizer,
-        train_dataset,
-        validation_dataset,
-        train_loss,
-        val_loss,
         other_fields,
     )
 end
@@ -37,10 +35,6 @@ function TrainingContext(;
     model,
     epoch,
     maximizer,
-    train_dataset,
-    validation_dataset,
-    train_loss,
-    val_loss,
     kwargs...,
 )
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
@@ -48,10 +42,6 @@ function TrainingContext(;
         model,
         epoch,
         maximizer,
-        train_dataset,
-        validation_dataset,
-        train_loss,
-        val_loss,
         other_fields,
     )
 end
@@ -79,9 +69,7 @@ Base.haskey(ctx::TrainingContext, key::Symbol) = hasproperty(ctx, key)
 function Base.show(io::IO, ctx::TrainingContext)
     print(io, "TrainingContext(")
     print(io, "epoch=$(ctx.epoch), ")
-    print(io, "model=$(typeof(ctx.model)), ")
-    print(io, "train_loss=$(ctx.train_loss), ")
-    print(io, "val_loss=$(ctx.val_loss)")
+    print(io, "model=$(typeof(ctx.model))")
     if !isempty(ctx.other_fields)
         print(io, ", other_fields=$(keys(ctx.other_fields))")
     end
@@ -101,8 +89,8 @@ function update_context(ctx::TrainingContext; kwargs...)
     new_maximizer = get(kwargs, :maximizer, ctx.maximizer)
     new_train_dataset = get(kwargs, :train_dataset, ctx.train_dataset)
     new_validation_dataset = get(kwargs, :validation_dataset, ctx.validation_dataset)
-    new_train_loss = get(kwargs, :train_loss, ctx.train_loss)
-    new_val_loss = get(kwargs, :val_loss, ctx.val_loss)
+    # new_train_loss = get(kwargs, :train_loss, ctx.train_loss)
+    # new_val_loss = get(kwargs, :val_loss, ctx.val_loss)
 
     # Merge other_fields with new kwargs
     new_other_fields = merge(
@@ -115,8 +103,8 @@ function update_context(ctx::TrainingContext; kwargs...)
                     :maximizer,
                     :train_dataset,
                     :validation_dataset,
-                    :train_loss,
-                    :val_loss,
+                    # :train_loss,
+                    # :val_loss,
                 ),
             kwargs,
         ),
@@ -128,8 +116,8 @@ function update_context(ctx::TrainingContext; kwargs...)
         new_maximizer,
         new_train_dataset,
         new_validation_dataset,
-        new_train_loss,
-        new_val_loss,
+        # new_train_loss,
+        # new_val_loss,
         new_other_fields,
     )
 end
