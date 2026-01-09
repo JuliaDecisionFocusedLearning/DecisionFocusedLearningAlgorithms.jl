@@ -5,7 +5,18 @@
 # TODO: parallelize loss computation on validation set
 # TODO: have supervised learning training method, where fyl_train calls it, therefore we can easily test new supervised losses if needed
 
-function fyl_train_model!(
+@kwdef struct PerturbedImitationAlgorithm{O}
+    nb_samples::Int = 10
+    ε::Float64 = 0.1
+    threaded::Bool = true
+    training_optimizer::O = Adam()
+    history::MVHistory = MVHistory()
+end
+
+reset!(algorithm::PerturbedImitationAlgorithm) = empty!(algorithm.history)
+
+function train!(
+    algorithm::PerturbedImitationAlgorithm,
     model,
     maximizer,
     train_dataset::AbstractArray{<:DataSample},
@@ -13,15 +24,14 @@ function fyl_train_model!(
     epochs=100,
     maximizer_kwargs=get_info,
     callbacks::Vector{<:TrainingCallback}=TrainingCallback[],
+    reset=false,
 )
-    perturbed = PerturbedAdditive(maximizer; nb_samples=10, ε=0.1, threaded=true)  # ! hardcoded
+    reset && reset!(algorithm)
+    (; nb_samples, ε, threaded, training_optimizer, history) = algorithm
+    perturbed = PerturbedAdditive(maximizer; nb_samples, ε, threaded)
     loss = FenchelYoungLoss(perturbed)
 
-    optimizer = Adam()  # ! hardcoded
-    opt_state = Flux.setup(optimizer, model)
-
-    # Initialize metrics storage with MVHistory
-    history = MVHistory()
+    opt_state = Flux.setup(training_optimizer, model)
 
     # Compute initial losses
     initial_val_loss = mean([

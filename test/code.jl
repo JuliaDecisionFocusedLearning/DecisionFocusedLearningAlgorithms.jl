@@ -1,5 +1,11 @@
-@testitem "Aqua" begin
-    using Aqua
+using Aqua
+using Documenter
+using JET
+using JuliaFormatter
+
+using DecisionFocusedLearningAlgorithms
+
+@testset "Aqua" begin
     Aqua.test_all(
         DecisionFocusedLearningAlgorithms;
         ambiguities=false,
@@ -7,23 +13,16 @@
     )
 end
 
-@testitem "JET" begin
-    using DecisionFocusedLearningAlgorithms
-    using JET
+@testset "JET" begin
     JET.test_package(DecisionFocusedLearningAlgorithms; target_defined_modules=true)
 end
 
-@testitem "JuliaFormatter" begin
-    using DecisionFocusedLearningAlgorithms
-    using JuliaFormatter
+@testset "JuliaFormatter" begin
     @test JuliaFormatter.format(
         DecisionFocusedLearningAlgorithms; verbose=false, overwrite=false
     )
 end
 
-@testitem "Documenter" begin
-    using DecisionFocusedLearningAlgorithms
-    using Documenter
-
+@testset "Documenter" begin
     Documenter.doctest(DecisionFocusedLearningAlgorithms)
 end

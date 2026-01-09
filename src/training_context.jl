@@ -63,7 +63,7 @@ function Base.getproperty(ctx::TrainingContext, name::Symbol)
     elseif !isempty(ctx.other_fields) && haskey(ctx.other_fields, name)
         return ctx.other_fields[name]
     else
-        throw(ArgumentError("TrainingContext has no field $name"))
+        throw(ArgumentError("TrainingContext $ctx has no field $name"))
     end
 end
 
