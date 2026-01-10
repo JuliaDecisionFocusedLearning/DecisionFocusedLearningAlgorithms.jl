@@ -5,13 +5,15 @@ using Literate
 DocMeta.setdocmeta!(
     DecisionFocusedLearningAlgorithms,
     :DocTestSetup,
-    :(begin
-        using DecisionFocusedLearningAlgorithms
-        using DecisionFocusedLearningBenchmarks
-        using Flux
-        using MLUtils
-        using Plots
-    end),
+    :(
+        begin
+            using DecisionFocusedLearningAlgorithms
+            using DecisionFocusedLearningBenchmarks
+            using Flux
+            using MLUtils
+            using Plots
+        end
+    );
     recursive=true,
 )
 

@@ -18,9 +18,7 @@ initial_gap = compute_gap(b, test_instances, model, maximizer)
 println("Initial test gap: $initial_gap")
 
 # Configure the training algorithm
-algorithm = PerturbedImitationAlgorithm(;
-    nb_samples=10, ε=0.1, threaded=true, seed=0
-)
+algorithm = PerturbedImitationAlgorithm(; nb_samples=10, ε=0.1, threaded=true, seed=0)
 
 # Define metrics to track during training
 validation_loss_metric = FYLLossMetric(validation_instances, :validation_loss)
