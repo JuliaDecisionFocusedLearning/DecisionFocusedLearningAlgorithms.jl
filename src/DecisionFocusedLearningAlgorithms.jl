@@ -19,8 +19,8 @@ include("metrics/accumulators.jl")
 include("metrics/function_metric.jl")
 include("metrics/periodic.jl")
 
-include("fyl.jl")
-include("dagger.jl")
+include("algorithms/fyl.jl")
+include("algorithms/dagger.jl")
 
 export TrainingContext
 
