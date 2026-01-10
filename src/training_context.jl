@@ -1,49 +1,36 @@
 """
-$TYPEDEF
+    TrainingContext{M,O}
 
-# Fields
-$TYPEDFIELDS
+Lightweight mutable context object passed to metrics during training.
+
+Fields
+- `model::M`: The ML model being trained
+- `epoch::Int`: Current epoch number (mutated in-place during training)
+- `maximizer`: CO maximizer used for decision-making (can be any callable)
+- `other_fields::O`: NamedTuple of optional algorithm-specific values
+
+Notes
+- `model`, `maximizer`, and `other_fields` are constant after construction; only `epoch` is intended to be mutated.
+- Use `update_context` to obtain a shallow copy with updated `other_fields` when needed.
 """
-struct TrainingContext{M,O}
+mutable struct TrainingContext{M,MX,O}
     "ML model"
-    model::M
+    const model::M
     "Current epoch number"
     epoch::Int
-    "CO Maximizer function"
-    maximizer::Function
+    "CO Maximizer (any callable)"
+    const maximizer::MX
     "Additional fields"
-    other_fields::O
+    const other_fields::O
 end
 
-function TrainingContext(
-    model,
-    epoch,
-    maximizer;
-    kwargs...,
-)
+function TrainingContext(model, epoch, maximizer; kwargs...)
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
-    return TrainingContext(
-        model,
-        epoch,
-        maximizer,
-        other_fields,
-    )
+    return TrainingContext(model, epoch, maximizer, other_fields)
 end
 
-# Convenience constructor that matches the old NamedTuple interface
-function TrainingContext(;
-    model,
-    epoch,
-    maximizer,
-    kwargs...,
-)
-    other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
-    return TrainingContext(
-        model,
-        epoch,
-        maximizer,
-        other_fields,
-    )
+function TrainingContext(; model, epoch, maximizer, kwargs...)
+    return TrainingContext(model, epoch, maximizer; kwargs...)
 end
 
 # Property access for additional fields stored in other_fields
@@ -76,48 +63,16 @@ function Base.show(io::IO, ctx::TrainingContext)
     return print(io, ")")
 end
 
-# Support for iteration over context properties (useful for debugging)
-function Base.propertynames(ctx::TrainingContext)
-    return (fieldnames(TrainingContext)..., keys(ctx.other_fields)...)
-end
+# # Helper to return a shallow copy with updated additional fields
+# function update_context(ctx::TrainingContext; kwargs...)
+#     new_model = get(kwargs, :model, ctx.model)
+#     new_epoch = get(kwargs, :epoch, ctx.epoch)
+#     new_maximizer = get(kwargs, :maximizer, ctx.maximizer)
 
-# Helper method to create a new context with updated fields
-function update_context(ctx::TrainingContext; kwargs...)
-    # Extract all current field values
-    new_model = get(kwargs, :model, ctx.model)
-    new_epoch = get(kwargs, :epoch, ctx.epoch)
-    new_maximizer = get(kwargs, :maximizer, ctx.maximizer)
-    new_train_dataset = get(kwargs, :train_dataset, ctx.train_dataset)
-    new_validation_dataset = get(kwargs, :validation_dataset, ctx.validation_dataset)
-    # new_train_loss = get(kwargs, :train_loss, ctx.train_loss)
-    # new_val_loss = get(kwargs, :val_loss, ctx.val_loss)
+#     # Merge other_fields with new kwargs, excluding core fields
+#     new_other_fields = merge(
+#         ctx.other_fields, filter(kv -> kv.first ∉ (:model, :epoch, :maximizer), kwargs)
+#     )
 
-    # Merge other_fields with new kwargs
-    new_other_fields = merge(
-        ctx.other_fields,
-        filter(
-            kv ->
-                kv.first ∉ (
-                    :model,
-                    :epoch,
-                    :maximizer,
-                    :train_dataset,
-                    :validation_dataset,
-                    # :train_loss,
-                    # :val_loss,
-                ),
-            kwargs,
-        ),
-    )
-
-    return TrainingContext(
-        new_model,
-        new_epoch,
-        new_maximizer,
-        new_train_dataset,
-        new_validation_dataset,
-        # new_train_loss,
-        # new_val_loss,
-        new_other_fields,
-    )
-end
+#     return TrainingContext(new_model, new_epoch, new_maximizer, new_other_fields)
+# end

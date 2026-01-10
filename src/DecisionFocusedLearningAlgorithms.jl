@@ -12,19 +12,30 @@ using ValueHistories: MVHistory
 
 include("utils.jl")
 include("training_context.jl")
-# include("dfl_policy.jl")
-# include("callbacks.jl")
-include("metric.jl")
+
+# Metrics subsystem
+include("metrics/interface.jl")
+include("metrics/accumulators.jl")
+include("metrics/function_metric.jl")
+include("metrics/periodic.jl")
+
 include("fyl.jl")
 include("dagger.jl")
 
-export fyl_train_model!,
-    fyl_train_model, baty_train_model, DAgger_train_model!, DAgger_train_model
-export TrainingCallback, Metric, on_epoch_end, get_metric_names, run_callbacks!
-export TrainingContext, update_context
+export TrainingContext
 
 export AbstractMetric,
-    FYLLossMetric, FunctionMetric, LossAccumulator, reset!, update!, evaluate!, compute
+    FYLLossMetric,
+    FunctionMetric,
+    PeriodicMetric,
+    LossAccumulator,
+    reset!,
+    update!,
+    evaluate!,
+    compute,
+    run_metrics!
+
+export fyl_train_model, baty_train_model, DAgger_train_model!, DAgger_train_model
 export PerturbedImitationAlgorithm, train_policy!
 
 end

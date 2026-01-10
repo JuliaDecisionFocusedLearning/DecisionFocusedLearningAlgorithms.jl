@@ -5,24 +5,12 @@
 # TODO: parallelize loss computation on validation set
 # TODO: have supervised learning training method, where fyl_train calls it, therefore we can easily test new supervised losses if needed
 
-@kwdef struct PerturbedImitationAlgorithm{O}
+@kwdef struct PerturbedImitationAlgorithm{O,S}
     nb_samples::Int = 10
     ε::Float64 = 0.1
     threaded::Bool = true
     training_optimizer::O = Adam()
-end
-
-function FYLLossMetric(
-    algorithm::PerturbedImitationAlgorithm, dataset, name::Symbol, maximizer
-)
-    perturbed = PerturbedAdditive(
-        maximizer;
-        nb_samples=algorithm.nb_samples,
-        ε=algorithm.ε,
-        threaded=algorithm.threaded,
-    )
-    loss = FenchelYoungLoss(perturbed)
-    return FYLLossMetric(loss, dataset, name)
+    seed::S = nothing
 end
 
 reset!(algorithm::PerturbedImitationAlgorithm) = empty!(algorithm.history)
@@ -39,8 +27,8 @@ function train_policy!(
     reset=false,
 )
     reset && reset!(algorithm)
-    (; nb_samples, ε, threaded, training_optimizer) = algorithm
-    perturbed = PerturbedAdditive(maximizer; nb_samples, ε, threaded)
+    (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
+    perturbed = PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed)
     loss = FenchelYoungLoss(perturbed)
 
     opt_state = Flux.setup(training_optimizer, model)
@@ -60,13 +48,8 @@ function train_policy!(
     reset!(train_loss_metric)
 
     # Initial metric evaluation
-    context = TrainingContext(; model=model, epoch=0, maximizer=maximizer)
-
-    # Evaluate all metrics
-    for metric in metrics
-        value = evaluate!(metric, context)
-        push!(history, metric.name, 0, value)
-    end
+    context = TrainingContext(; model=model, epoch=0, maximizer=maximizer, loss=loss)
+    run_metrics!(history, metrics, context)
 
     @showprogress for epoch in 1:epochs
         # Training step
@@ -83,13 +66,9 @@ function train_policy!(
         push!(history, :training_loss, epoch, compute(train_loss_metric))
         reset!(train_loss_metric)
 
-        # Evaluate all metrics
-        context = TrainingContext(; model=model, epoch=epoch, maximizer=maximizer)
-
-        for metric in metrics
-            value = evaluate!(metric, context)
-            push!(history, metric.name, epoch, value)
-        end
+        # Evaluate all metrics - update epoch in context
+        context.epoch = epoch
+        run_metrics!(history, metrics, context)
     end
 
     # Plot training loss (or first metric if available)
@@ -104,17 +83,25 @@ function train_policy!(
 end
 
 function fyl_train_model(
-    initial_model, maximizer, train_dataset, validation_dataset; kwargs...
+    initial_model,
+    maximizer,
+    train_dataset,
+    validation_dataset;
+    algorithm=PerturbedImitationAlgorithm(),
+    kwargs...,
 )
     model = deepcopy(initial_model)
-    return fyl_train_model!(model, maximizer, train_dataset, validation_dataset; kwargs...),
-    model
+    history = train_policy!(
+        algorithm, model, maximizer, train_dataset, validation_dataset; kwargs...
+    )
+    return history, model
 end
 
 function baty_train_model(
     b::AbstractStochasticBenchmark{true};
     epochs=10,
     metrics::Tuple=(),
+    algorithm::PerturbedImitationAlgorithm=PerturbedImitationAlgorithm(),
 )
     # Generate instances and environments
     dataset = generate_dataset(b, 30)
@@ -139,8 +126,9 @@ function baty_train_model(
     model = generate_statistical_model(b)
     maximizer = generate_maximizer(b)
 
-    # Train with metrics
-    history = fyl_train_model!(
+    # Train with algorithm
+    history = train_policy!(
+        algorithm,
         model,
         maximizer,
         train_dataset,

@@ -8,6 +8,7 @@ function DAgger_train_model!(
     iterations=5,
     fyl_epochs=3,
     metrics::Tuple=(),
+    algorithm::PerturbedImitationAlgorithm=PerturbedImitationAlgorithm(),
     maximizer_kwargs=get_state,
 )
     α = 1.0
@@ -30,7 +31,8 @@ function DAgger_train_model!(
         println("DAgger iteration $iter/$iterations (α=$(round(α, digits=3)))")
 
         # Train for fyl_epochs
-        iter_history = fyl_train_model!(
+        iter_history = train_policy!(
+            algorithm,
             model,
             maximizer,
             dataset,
@@ -82,7 +84,7 @@ function DAgger_train_model!(
         # Dataset update - collect new samples using mixed policy
         new_samples = eltype(dataset)[]
         for env in train_environments
-            reset!(env; reset_rng=false)
+            DecisionFocusedLearningBenchmarks.reset!(env; reset_rng=false)
             while !is_terminated(env)
                 x_before = copy(observe(env)[1])
                 _, anticipative_solution = anticipative_policy(env; reset_env=false)

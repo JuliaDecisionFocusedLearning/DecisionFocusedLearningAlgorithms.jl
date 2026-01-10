@@ -14,10 +14,11 @@ using ValueHistories
     @testset "FYL Training - Basic" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        algorithm = PerturbedImitationAlgorithm()
 
         # Test basic training runs without error
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, metrics=()
+        history = train_policy!(
+            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=()
         )
 
         # Check that history is returned
@@ -34,24 +35,18 @@ using ValueHistories
 
         # Check that losses are Float64
         @test all(isa(l, Float64) for l in train_losses)
-
-        val_epochs, val_losses = get(history, :validation_loss)
-        @test length(val_epochs) == 4
-        @test all(isa(l, Float64) for l in val_losses)
     end
 
     @testset "FYL Training - With Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        algorithm = PerturbedImitationAlgorithm()
 
-        # Create loss metric using FenchelYoungLoss
-        using InferOpt: FenchelYoungLoss, PerturbedAdditive
-        perturbed = PerturbedAdditive(maximizer; nb_samples=10, ε=0.1)
-        loss = FenchelYoungLoss(perturbed)
-        val_loss_metric = FYLLossMetric(loss, val_data, :validation_loss)
+        # Create loss metric
+        val_loss_metric = FYLLossMetric(val_data, :validation_loss)
 
         # Create custom function metrics
-        epoch_metric = FunctionMetric(:epoch, ctx -> ctx.epoch)
+        epoch_metric = FunctionMetric(ctx -> ctx.epoch, :epoch)
 
         # Create metric with stored data
         gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
@@ -60,8 +55,8 @@ using ValueHistories
 
         metrics = (val_loss_metric, epoch_metric, gap_metric)
 
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, metrics=metrics
+        history = train_policy!(
+            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=metrics
         )
 
         # Check metrics are recorded
@@ -87,10 +82,11 @@ using ValueHistories
     @testset "FYL Training - Context Fields" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        algorithm = PerturbedImitationAlgorithm()
 
         # Metric that checks context structure
         context_checker = FunctionMetric(
-            :context_check, (ctx) -> begin
+            ctx -> begin
                 # Check required core fields exist
                 @test hasproperty(ctx, :epoch)
                 @test hasproperty(ctx, :model)
@@ -99,14 +95,20 @@ using ValueHistories
                 # Check types
                 @test ctx.epoch isa Int
                 @test ctx.model !== nothing
-                @test ctx.maximizer isa Function
+                @test ctx.maximizer !== nothing  # maximizer can be any callable
 
                 return 1.0  # dummy value
-            end
+            end, :context_check
         )
 
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=2, metrics=(context_checker,)
+        history = train_policy!(
+            algorithm,
+            model,
+            maximizer,
+            train_data,
+            val_data;
+            epochs=2,
+            metrics=(context_checker,),
         )
 
         @test haskey(history, :context_check)
@@ -131,11 +133,12 @@ using ValueHistories
     @testset "Multiple Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        algorithm = PerturbedImitationAlgorithm()
 
-        metrics = (FunctionMetric(:epoch_squared, ctx -> Float64(ctx.epoch^2)),)
+        metrics = (FunctionMetric(ctx -> Float64(ctx.epoch^2), :epoch_squared),)
 
-        history = fyl_train_model!(
-            model, maximizer, train_data, val_data; epochs=3, metrics=metrics
+        history = train_policy!(
+            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=metrics
         )
 
         # Metric should be tracked
