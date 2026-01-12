@@ -1,4 +1,4 @@
-function baty_train_model(
+function kleopatra_train_model(
     b::AbstractStochasticBenchmark{true};
     epochs=10,
     metrics::Tuple=(),
@@ -8,7 +8,6 @@ function baty_train_model(
     dataset = generate_dataset(b, 30)
     train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3))
     train_environments = generate_environments(b, train_instances)
-    validation_environments = generate_environments(b, validation_instances)
 
     # Generate anticipative solutions
     train_dataset = vcat(
@@ -17,11 +16,6 @@ function baty_train_model(
             return y
         end...
     )
-
-    val_dataset = vcat(map(validation_environments) do env
-        v, y = generate_anticipative_solution(b, env; reset_env=true)
-        return y
-    end...)
 
     # Initialize model and maximizer
     model = generate_statistical_model(b)
@@ -32,8 +26,7 @@ function baty_train_model(
         algorithm,
         model,
         maximizer,
-        train_dataset,
-        val_dataset;
+        train_dataset;
         epochs=epochs,
         metrics=metrics,
         maximizer_kwargs=get_state,

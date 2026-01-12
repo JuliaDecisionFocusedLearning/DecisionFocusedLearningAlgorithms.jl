@@ -3,16 +3,32 @@
 # TODO: parallelize loss computation on validation set
 # TODO: have supervised learning training method, where fyl_train calls it, therefore we can easily test new supervised losses if needed
 
-@kwdef struct PerturbedImitationAlgorithm{O,S}
+"""
+$TYPEDEF
+
+Structured imitation learning with a perturbed Fenchel-Young loss.
+
+# Fields
+$TYPEDFIELDS
+"""
+@kwdef struct PerturbedImitationAlgorithm{O,S} <: AbstractImitationAlgorithm
+    "number of perturbation samples"
     nb_samples::Int = 10
+    "perturbation magnitude"
     ε::Float64 = 0.1
+    "whether to use threading for perturbations"
     threaded::Bool = true
+    "optimizer used for training"
     training_optimizer::O = Adam()
+    "random seed for perturbations"
     seed::S = nothing
 end
 
-reset!(algorithm::PerturbedImitationAlgorithm) = empty!(algorithm.history)
+"""
+$TYPEDSIGNATURES
 
+Train a model using the Perturbed Imitation Algorithm on the provided training dataset.
+"""
 function train_policy!(
     algorithm::PerturbedImitationAlgorithm,
     model,
@@ -21,9 +37,7 @@ function train_policy!(
     epochs=100,
     maximizer_kwargs=get_info,
     metrics::Tuple=(),
-    reset=false,
 )
-    reset && reset!(algorithm)
     (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
     perturbed = PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed)
     loss = FenchelYoungLoss(perturbed)
@@ -32,23 +46,21 @@ function train_policy!(
 
     history = MVHistory()
 
-    train_loss_metric = LossAccumulator(:training_loss)
+    train_loss_metric = FYLLossMetric(train_dataset, :training_loss)
 
-    # Store initial losses (epoch 0)
-    # Epoch 0
-    for sample in train_dataset
-        (; x, y) = sample
-        val = loss(model(x), y; maximizer_kwargs(sample)...)
-        update!(train_loss_metric, val)
-    end
-    push!(history, :training_loss, 0, compute(train_loss_metric))
-    reset!(train_loss_metric)
-
-    # Initial metric evaluation
-    context = TrainingContext(; model=model, epoch=0, maximizer=maximizer, loss=loss)
-    run_metrics!(history, metrics, context)
+    # Initial metric evaluation and training loss (epoch 0)
+    context = TrainingContext(;
+        model=model,
+        epoch=0,
+        maximizer=maximizer,
+        maximizer_kwargs=maximizer_kwargs,
+        loss=loss,
+    )
+    push!(history, :training_loss, 0, evaluate!(train_loss_metric, context))
+    evaluate_metrics!(history, metrics, context)
 
     @showprogress for epoch in 1:epochs
+        next_epoch!(context)
         # Training step
         for sample in train_dataset
             (; x, y) = sample
@@ -59,13 +71,9 @@ function train_policy!(
             update!(train_loss_metric, val)
         end
 
-        # Store training loss
-        push!(history, :training_loss, epoch, compute(train_loss_metric))
-        reset!(train_loss_metric)
-
-        # Evaluate all metrics - update epoch in context
-        context.epoch = epoch
-        run_metrics!(history, metrics, context)
+        # Log metrics
+        push!(history, :training_loss, epoch, compute!(train_loss_metric))
+        evaluate_metrics!(history, metrics, context)
     end
 
     # Plot training loss (or first metric if available)

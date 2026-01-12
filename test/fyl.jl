@@ -18,7 +18,7 @@ using ValueHistories
 
         # Test basic training runs without error
         history = train_policy!(
-            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=()
+            algorithm, model, maximizer, train_data; epochs=3, metrics=()
         )
 
         # Check that history is returned

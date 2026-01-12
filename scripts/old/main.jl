@@ -19,7 +19,7 @@ res = fyl_train_model(StochasticVehicleSchedulingBenchmark(); epochs=100)
 plot(res.validation_loss; label="Validation Loss")
 plot!(res.training_loss; label="Training Loss")
 
-baty_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
+kleopatra_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
 DAgger_train_model(DynamicVehicleSchedulingBenchmark(; two_dimensional_features=false))
 
 struct KleopatraPolicy{M}
@@ -79,7 +79,6 @@ dagger_history = DAgger_train_model!(
     dagger_model,
     maximizer,
     train_environments,
-    validation_environments,
     anticipative_policy;
     iterations=10,
     fyl_epochs=10,

@@ -18,6 +18,7 @@ include("metrics/accumulators.jl")
 include("metrics/function_metric.jl")
 include("metrics/periodic.jl")
 
+include("algorithms/abstract_algorithm.jl")
 include("algorithms/supervised/fyl.jl")
 include("algorithms/supervised/kleopatra.jl")
 include("algorithms/supervised/dagger.jl")
@@ -32,10 +33,10 @@ export AbstractMetric,
     reset!,
     update!,
     evaluate!,
-    compute,
-    run_metrics!
+    compute!,
+    evaluate_metrics!
 
-export fyl_train_model, baty_train_model, DAgger_train_model!, DAgger_train_model
+export fyl_train_model, kleopatra_train_model, DAgger_train_model!, DAgger_train_model
 export PerturbedImitationAlgorithm, train_policy!
 
 end

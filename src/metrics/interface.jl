@@ -101,14 +101,14 @@ epoch_metric = FunctionMetric(ctx -> ctx.epoch, :current_epoch)
 
 # Evaluate and store
 context = TrainingContext(model=model, epoch=5, maximizer=maximizer)
-run_metrics!(history, (val_loss, epoch_metric), context)
+evaluate_metrics!(history, (val_loss, epoch_metric), context)
 ```
 
 # See also
 - [`AbstractMetric`](@ref)
 - [`evaluate!`](@ref)
 """
-function run_metrics!(history::MVHistory, metrics::Tuple, context::TrainingContext)
+function evaluate_metrics!(history::MVHistory, metrics::Tuple, context::TrainingContext)
     for metric in metrics
         value = evaluate!(metric, context)
         _store_metric_value!(history, metric.name, context.epoch, value)

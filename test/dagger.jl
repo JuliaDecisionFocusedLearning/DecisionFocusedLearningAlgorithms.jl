@@ -23,7 +23,6 @@ using ValueHistories
             model,
             maximizer,
             train_envs,
-            val_envs,
             anticipative_policy;
             iterations=2,
             fyl_epochs=2,
@@ -51,7 +50,6 @@ using ValueHistories
             model,
             maximizer,
             train_envs,
-            val_envs,
             anticipative_policy;
             iterations=2,
             fyl_epochs=2,
@@ -98,8 +96,7 @@ end
             algorithm,
             model_fyl,
             maximizer,
-            train_data,
-            val_data;
+            train_data;
             epochs=2,
             metrics=(portable_metric,),
         )
@@ -126,13 +123,7 @@ end
         end, :loss_check)
 
         history = train_policy!(
-            algorithm,
-            model,
-            maximizer,
-            train_data,
-            val_data;
-            epochs=2,
-            metrics=(loss_checker,),
+            algorithm, model, maximizer, train_data; epochs=2, metrics=(loss_checker,)
         )
 
         @test haskey(history, :loss_check)

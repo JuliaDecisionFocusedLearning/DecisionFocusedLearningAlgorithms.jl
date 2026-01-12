@@ -39,13 +39,7 @@ metrics = (validation_loss_metric, val_gap_metric, test_gap_metric)
 # Train the model
 fyl_model = deepcopy(model)
 history = train_policy!(
-    algorithm,
-    fyl_model,
-    maximizer,
-    train_instances,
-    validation_instances;
-    epochs=100,
-    metrics=metrics,
+    algorithm, fyl_model, maximizer, train_instances; epochs=100, metrics=metrics
 )
 
 # Plot validation and test gaps

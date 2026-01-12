@@ -7,22 +7,24 @@ Lightweight mutable context object passed to metrics during training.
 $TYPEDFIELDS
 
 # Notes
-- `model`, `maximizer`, and `other_fields` are constant after construction; only `epoch` is intended to be mutated.
+- `model`, `maximizer`, `maximizer_kwargs`, and `other_fields` are constant after construction; only `epoch` is intended to be mutated.
 """
-mutable struct TrainingContext{M,MX,O<:NamedTuple}
+mutable struct TrainingContext{M,MX,F,O<:NamedTuple}
     "the ML model being trained"
     const model::M
     "current epoch number (mutated in-place during training)"
     epoch::Int
     "CO maximizer used for decision-making (can be any callable)"
     const maximizer::MX
-    "`NamedTuple` container of optional algorithm-specific values"
+    "function to extract keyword arguments for maximizer calls from data samples"
+    const maximizer_kwargs::F
+    "`NamedTuple` container of additional algorithm-specific configuration (e.g., loss)"
     const other_fields::O
 end
 
-function TrainingContext(; model, epoch, maximizer, kwargs...)
+function TrainingContext(; model, epoch, maximizer, maximizer_kwargs=get_info, kwargs...)
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
-    return TrainingContext(model, epoch, maximizer, other_fields)
+    return TrainingContext(model, epoch, maximizer, maximizer_kwargs, other_fields)
 end
 
 function Base.show(io::IO, ctx::TrainingContext)
@@ -52,4 +54,14 @@ function Base.getproperty(ctx::TrainingContext, name::Symbol)
     else
         throw(ArgumentError("TrainingContext $ctx has no field $name"))
     end
+end
+
+"""
+$TYPEDSIGNATURES
+
+Advance the epoch counter in the training context by one.
+"""
+function next_epoch!(ctx::TrainingContext)
+    ctx.epoch += 1
+    return nothing
 end

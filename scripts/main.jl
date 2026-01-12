@@ -47,7 +47,7 @@ metrics = (
 
 model = deepcopy(initial_model)
 history = train_policy!(
-    algorithm, model, maximizer, train_dataset, val_dataset; epochs=50, metrics=metrics
+    algorithm, model, maximizer, train_dataset; epochs=50, metrics=metrics
 )
 X_train, Y_train = get(history, :training_loss)
 X_val, Y_val = get(history, :validation_loss)

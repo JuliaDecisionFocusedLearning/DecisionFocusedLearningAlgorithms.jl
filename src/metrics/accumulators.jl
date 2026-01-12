@@ -20,7 +20,7 @@ for sample in dataset
 end
 
 # Get average and reset
-avg_loss = compute(metric)  # Automatically resets
+avg_loss = compute!(metric)  # Automatically resets
 ```
 
 # See also
@@ -76,7 +76,7 @@ Add a loss value to the accumulator.
 metric = LossAccumulator()
 update!(metric, 1.5)
 update!(metric, 2.0)
-compute(metric)  # Returns 1.75
+compute!(metric)  # Returns 1.75
 ```
 """
 function update!(metric::LossAccumulator, loss_value::Float64)
@@ -101,10 +101,10 @@ Compute the average loss from accumulated values.
 metric = LossAccumulator()
 update!(metric, 1.5)
 update!(metric, 2.5)
-avg = compute(metric)  # Returns 2.0, then resets
+avg = compute!(metric)  # Returns 2.0, then resets
 ```
 """
-function compute(metric::LossAccumulator; reset::Bool=true)
+function compute!(metric::LossAccumulator; reset::Bool=true)
     value = metric.count == 0 ? 0.0 : metric.total_loss / metric.count
     reset && reset!(metric)
     return value
@@ -130,7 +130,7 @@ Can also be used in the algorithms to accumulate loss over training data.
 # Create metric with validation dataset
 val_metric = FYLLossMetric(val_dataset, :validation_loss)
 
-# Evaluate during training (called by run_metrics!)
+# Evaluate during training (called by evaluate_metrics!)
 context = TrainingContext(model=model, epoch=5, maximizer=maximizer, loss=loss)
 avg_loss = evaluate!(val_metric, context)
 ```
@@ -228,19 +228,33 @@ function evaluate!(metric::FYLLossMetric, context::TrainingContext)
     for sample in metric.dataset
         θ = context.model(sample.x)
         y_target = sample.y
-        update!(metric, context.loss, θ, y_target; sample.info...)
+        update!(metric, context.loss, θ, y_target; context.maximizer_kwargs(sample)...)
     end
-    return compute(metric)
+    return compute!(metric)
 end
 
 """
-    compute(metric::FYLLossMetric)
+$TYPEDSIGNATURES
+
+Update the metric with an already-computed loss value. This avoids re-evaluating
+the loss inside the metric when the loss was computed during training.
+
+# Returns
+- `Float64` - The provided loss value
+"""
+function update!(metric::FYLLossMetric, loss_value::Float64)
+    update!(metric.accumulator, loss_value)
+    return loss_value
+end
+
+"""
+    compute!(metric::FYLLossMetric)
 
 Compute the average loss from accumulated values.
 
 # Returns
 - `Float64` - Average loss (or 0.0 if no values accumulated)
 """
-function compute(metric::FYLLossMetric)
-    return compute(metric.accumulator)
+function compute!(metric::FYLLossMetric)
+    return compute!(metric.accumulator)
 end

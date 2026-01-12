@@ -3,7 +3,6 @@ function DAgger_train_model!(
     model,
     maximizer,
     train_environments,
-    validation_environments,
     anticipative_policy;
     iterations=5,
     fyl_epochs=3,
@@ -13,10 +12,6 @@ function DAgger_train_model!(
 )
     α = 1.0
     train_dataset = vcat(map(train_environments) do env
-        v, y = anticipative_policy(env; reset_env=true)
-        return y
-    end...)
-    val_dataset = vcat(map(validation_environments) do env
         v, y = anticipative_policy(env; reset_env=true)
         return y
     end...)
@@ -117,18 +112,12 @@ function DAgger_train_model(b::AbstractStochasticBenchmark{true}; kwargs...)
     dataset = generate_dataset(b, 30)
     train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))
     train_environments = generate_environments(b, train_instances; seed=0)
-    validation_environments = generate_environments(b, validation_instances)
     model = generate_statistical_model(b)
     maximizer = generate_maximizer(b)
     anticipative_policy =
         (env; reset_env) -> generate_anticipative_solution(b, env; reset_env)
     history = DAgger_train_model!(
-        model,
-        maximizer,
-        train_environments,
-        validation_environments,
-        anticipative_policy;
-        kwargs...,
+        model, maximizer, train_environments, anticipative_policy; kwargs...
     )
     return history, model
 end

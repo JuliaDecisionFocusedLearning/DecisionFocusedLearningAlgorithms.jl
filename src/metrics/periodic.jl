@@ -11,7 +11,7 @@ $TYPEDFIELDS
 
 # Behavior
 The metric is evaluated when `(epoch - offset) % frequency == 0`.
-On other epochs, `evaluate!` returns `nothing` (which is skipped by `run_metrics!`).
+On other epochs, `evaluate!` returns `nothing` (which is skipped by `evaluate_metrics!`).
 
 # Examples
 ```julia
@@ -31,7 +31,7 @@ final_test = PeriodicMetric(test_metric, 1; offset=100)
 # See also
 - [`FunctionMetric`](@ref)
 - [`evaluate!`](@ref)
-- [`run_metrics!`](@ref)
+- [`evaluate_metrics!`](@ref)
 """
 struct PeriodicMetric{M<:AbstractMetric} <: AbstractMetric
     "the wrapped metric to evaluate periodically"
@@ -94,7 +94,7 @@ Evaluate the wrapped metric only if the current epoch matches the frequency patt
 
 # Returns
 - The result of `evaluate!(pm.metric, context)` if epoch matches the pattern
-- `nothing` otherwise (which is skipped by `run_metrics!`)
+- `nothing` otherwise (which is skipped by `evaluate_metrics!`)
 
 # Examples
 ```julia

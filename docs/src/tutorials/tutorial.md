@@ -71,8 +71,7 @@ history = train_policy!(
     algorithm,
     fyl_model,
     maximizer,
-    train_instances,
-    validation_instances;
+    train_instances;
     epochs=100,
     metrics=metrics,
 )
