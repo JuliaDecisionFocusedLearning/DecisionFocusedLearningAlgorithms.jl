@@ -35,8 +35,7 @@ function DAgger_train_model!(
             algorithm,
             model,
             maximizer,
-            dataset,
-            val_dataset;
+            dataset;
             epochs=fyl_epochs,
             metrics=metrics,
             maximizer_kwargs=maximizer_kwargs,
@@ -45,7 +44,7 @@ function DAgger_train_model!(
         # Merge iteration history into combined history
         for key in keys(iter_history)
             epochs, values = get(iter_history, key)
-            for i in 1:length(epochs)
+            for i in eachindex(epochs)
                 # Calculate global epoch number
                 if iter == 1
                     # First iteration: use epochs as-is [0, 1, 2, ...]

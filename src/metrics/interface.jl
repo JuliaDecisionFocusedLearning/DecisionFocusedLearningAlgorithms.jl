@@ -1,11 +1,10 @@
 """
-    AbstractMetric
+$TYPEDEF
 
 Abstract base type for all metrics used during training.
 
 All concrete metric types should implement:
 - `evaluate!(metric, context)` - Evaluate the metric given a training context
-- Optionally: `reset!(metric)`, `update!(metric, ...)`, `compute(metric)`
 
 # See also
 - [`LossAccumulator`](@ref)
@@ -16,21 +15,7 @@ All concrete metric types should implement:
 abstract type AbstractMetric end
 
 """
-    reset!(metric::AbstractMetric)
-
-Reset the internal state of a metric. Used for accumulator-style metrics.
-"""
-function reset!(metric::AbstractMetric) end
-
-"""
-    update!(metric::AbstractMetric; kwargs...)
-
-Update the metric with new data. Used for accumulator-style metrics during training.
-"""
-function update!(metric::AbstractMetric; kwargs...) end
-
-"""
-    evaluate!(metric::AbstractMetric, context)
+    evaluate!(metric::AbstractMetric, context::TrainingContext)
 
 Evaluate the metric given the current training context.
 
@@ -44,25 +29,20 @@ Can return:
 - A `NamedTuple` - each key-value pair stored separately
 - `nothing` - skipped (e.g., periodic metrics on off-epochs)
 """
-function evaluate!(metric::AbstractMetric, context) end
-
-"""
-    compute(metric::AbstractMetric)
-
-Compute the final metric value from accumulated data. Used for accumulator-style metrics.
-"""
-function compute(metric::AbstractMetric) end
+function evaluate! end
 
 # ============================================================================
 # Metric storage helpers
 # ============================================================================
 
 """
-    _store_metric_value!(history, metric_name, epoch, value)
+$TYPEDSIGNATURES
 
 Internal helper to store a single metric value in the history.
 """
-function _store_metric_value!(history, metric_name, epoch, value)
+function _store_metric_value!(
+    history::MVHistory, metric_name::Symbol, epoch::Int, value::Number
+)
     try
         push!(history, metric_name, epoch, value)
     catch e
@@ -76,34 +56,30 @@ function _store_metric_value!(history, metric_name, epoch, value)
 end
 
 """
-    _store_metric_value!(history, metric_name, epoch, value::NamedTuple)
+$TYPEDSIGNATURES
 
 Internal helper to store multiple metric values from a NamedTuple.
 Each key-value pair is stored separately in the history.
 """
-function _store_metric_value!(
-    history::MVHistory, metric_name::Symbol, epoch::Int, value::NamedTuple
-)
+function _store_metric_value!(history::MVHistory, ::Symbol, epoch::Int, value::NamedTuple)
     for (key, val) in pairs(value)
-        push!(history, key, epoch, val)
+        _store_metric_value!(history, Symbol(key), epoch, val)
     end
     return nothing
 end
 
 """
-    _store_metric_value!(history, metric_name, epoch, ::Nothing)
+$TYPEDSIGNATURES
 
 Internal helper that skips storing when value is `nothing`.
 Used by periodic metrics on epochs when they're not evaluated.
 """
-function _store_metric_value!(
-    history::MVHistory, metric_name::Symbol, epoch::Int, ::Nothing
-)
+function _store_metric_value!(::MVHistory, ::Symbol, ::Int, ::Nothing)
     return nothing
 end
 
 """
-    run_metrics!(history, metrics::Tuple, context)
+$TYPEDSIGNATURES
 
 Evaluate all metrics and store their results in the history.
 
@@ -113,9 +89,9 @@ This function handles three types of metric returns through multiple dispatch:
 - **nothing**: Skipped (e.g., periodic metrics on epochs when not evaluated)
 
 # Arguments
-- `history` - MVHistory object to store metric values
+- `history::MVHistory` - MVHistory object to store metric values
 - `metrics::Tuple` - Tuple of AbstractMetric instances to evaluate
-- `context` - TrainingContext with current training state (model, epoch, maximizer, etc.)
+- `context::TrainingContext` - TrainingContext with current training state (model, epoch, maximizer, etc.)
 
 # Examples
 ```julia

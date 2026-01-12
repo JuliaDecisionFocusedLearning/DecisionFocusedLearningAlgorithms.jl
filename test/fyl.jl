@@ -56,7 +56,7 @@ using ValueHistories
         metrics = (val_loss_metric, epoch_metric, gap_metric)
 
         history = train_policy!(
-            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=metrics
+            algorithm, model, maximizer, train_data; epochs=3, metrics=metrics
         )
 
         # Check metrics are recorded
@@ -102,13 +102,7 @@ using ValueHistories
         )
 
         history = train_policy!(
-            algorithm,
-            model,
-            maximizer,
-            train_data,
-            val_data;
-            epochs=2,
-            metrics=(context_checker,),
+            algorithm, model, maximizer, train_data; epochs=2, metrics=(context_checker,)
         )
 
         @test haskey(history, :context_check)
@@ -120,7 +114,7 @@ using ValueHistories
 
         # Test non-mutating version
         history, trained_model = fyl_train_model(
-            initial_model, maximizer, train_data, val_data; epochs=2
+            initial_model, maximizer, train_data; epochs=2
         )
 
         @test history isa MVHistory
@@ -138,7 +132,7 @@ using ValueHistories
         metrics = (FunctionMetric(ctx -> Float64(ctx.epoch^2), :epoch_squared),)
 
         history = train_policy!(
-            algorithm, model, maximizer, train_data, val_data; epochs=3, metrics=metrics
+            algorithm, model, maximizer, train_data; epochs=3, metrics=metrics
         )
 
         # Metric should be tracked

@@ -1,5 +1,5 @@
 """
-    FunctionMetric{F,D} <: AbstractMetric
+$TYPEDEF
 
 A flexible metric that wraps a user-defined function.
 
@@ -9,9 +9,7 @@ receives the training context and optionally any stored data. It can return:
 - A `NamedTuple` (each key-value pair stored separately)
 
 # Fields
-- `name::Symbol` - Identifier for the metric
-- `metric_fn::F` - Function with signature `(context) -> value` or `(context, data) -> value`
-- `data::D` - Optional data stored in the metric (default: `nothing`)
+$TYPEDFIELDS
 
 # Examples
 ```julia
@@ -38,13 +36,16 @@ end
 - [`evaluate!`](@ref)
 """
 struct FunctionMetric{F,D} <: AbstractMetric
+    "function with signature `(context) -> value` or `(context, data) -> value`"
     metric_fn::F
+    "identifier for the metric"
     name::Symbol
+    "optional data stored in the metric (default: `nothing`)"
     data::D
 end
 
 """
-    FunctionMetric(metric_fn::Function, name::Symbol)
+$TYPEDSIGNATURES
 
 Construct a FunctionMetric without stored data.
 
@@ -70,35 +71,7 @@ function FunctionMetric(metric_fn::F, name::Symbol) where {F}
 end
 
 """
-    FunctionMetric(name::Symbol, metric_fn::Function, data)
-
-Construct a FunctionMetric with stored data.
-
-The function should have signature `(context, data) -> value`.
-
-# Arguments
-- `name::Symbol` - Identifier for the metric
-- `metric_fn::Function` - Function to compute the metric
-- `data` - Data to store in the metric (e.g., dataset, environments)
-
-# Examples
-```julia
-# Gap metric with validation dataset
-gap = FunctionMetric(:val_gap, val_dataset) do ctx, data
-    compute_gap(benchmark, data, ctx.model, ctx.maximizer)
-end
-
-# Multiple datasets
-dual_gap = FunctionMetric(:gaps, (train_data, val_data)) do ctx, datasets
-    train_ds, val_ds = datasets
-    return (train_gap=compute_gap(...), val_gap=compute_gap(...))
-end
-```
-"""
-# Constructor with data - uses default struct constructor FunctionMetric{F,D}(name, metric_fn, data)
-
-"""
-    evaluate!(metric::FunctionMetric, context)
+$TYPEDSIGNATURES
 
 Evaluate the function metric by calling the stored function.
 
@@ -116,7 +89,7 @@ context = TrainingContext(model=model, epoch=5, maximizer=maximizer)
 value = evaluate!(metric, context)  # Returns 5
 ```
 """
-function evaluate!(metric::FunctionMetric, context)
+function evaluate!(metric::FunctionMetric, context::TrainingContext)
     if isnothing(metric.data)
         return metric.metric_fn(context)
     else

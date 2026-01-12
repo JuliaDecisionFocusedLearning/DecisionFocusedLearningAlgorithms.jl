@@ -13,14 +13,14 @@ using ValueHistories: MVHistory
 include("utils.jl")
 include("training_context.jl")
 
-# Metrics subsystem
 include("metrics/interface.jl")
 include("metrics/accumulators.jl")
 include("metrics/function_metric.jl")
 include("metrics/periodic.jl")
 
-include("algorithms/fyl.jl")
-include("algorithms/dagger.jl")
+include("algorithms/supervised/fyl.jl")
+include("algorithms/supervised/kleopatra.jl")
+include("algorithms/supervised/dagger.jl")
 
 export TrainingContext
 

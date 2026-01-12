@@ -1,5 +1,5 @@
 """
-    LossAccumulator <: AbstractMetric
+$TYPEDEF
 
 Accumulates loss values during training and computes their average.
 
@@ -7,9 +7,7 @@ This metric is used internally by training loops to track training loss.
 It accumulates loss values via `update!` calls and computes the average via `compute`.
 
 # Fields
-- `name::Symbol` - Identifier for this metric (e.g., `:training_loss`)
-- `total_loss::Float64` - Running sum of loss values
-- `count::Int` - Number of samples accumulated
+$TYPEDFIELDS
 
 # Examples
 ```julia
@@ -31,32 +29,27 @@ avg_loss = compute(metric)  # Automatically resets
 - [`update!`](@ref)
 - [`compute`](@ref)
 """
-mutable struct LossAccumulator <: AbstractMetric
+mutable struct LossAccumulator
+    "Identifier for this metric (e.g., `:training_loss`)"
     const name::Symbol
+    "Running sum of loss values"
     total_loss::Float64
+    "Number of samples accumulated"
     count::Int
 end
 
 """
-    LossAccumulator(name::Symbol=:training_loss)
+$TYPEDSIGNATURES
 
 Construct a LossAccumulator with the given name.
-
-# Arguments
-- `name::Symbol` - Identifier for the metric (default: `:training_loss`)
-
-# Examples
-```julia
-train_metric = LossAccumulator(:training_loss)
-val_metric = LossAccumulator(:validation_loss)
-```
+Initializes total loss and count to zero.
 """
 function LossAccumulator(name::Symbol=:training_loss)
     return LossAccumulator(name, 0.0, 0)
 end
 
 """
-    reset!(metric::LossAccumulator)
+$TYPEDSIGNATURES
 
 Reset the accumulator to its initial state (zero total loss and count).
 
@@ -74,13 +67,9 @@ function reset!(metric::LossAccumulator)
 end
 
 """
-    update!(metric::LossAccumulator, loss_value::Float64)
+$TYPEDSIGNATURES
 
 Add a loss value to the accumulator.
-
-# Arguments
-- `metric::LossAccumulator` - The accumulator to update
-- `loss_value::Float64` - Loss value to add
 
 # Examples
 ```julia
@@ -96,7 +85,7 @@ function update!(metric::LossAccumulator, loss_value::Float64)
 end
 
 """
-    compute(metric::LossAccumulator; reset::Bool=true)
+$TYPEDSIGNATURES
 
 Compute the average loss from accumulated values.
 
@@ -130,12 +119,11 @@ Metric for evaluating Fenchel-Young Loss over a dataset.
 
 This metric stores a dataset and computes the average Fenchel-Young Loss
 when `evaluate!` is called. Useful for tracking validation loss during training.
+Can also be used in the algorithms to accumulate loss over training data.
 
 # Fields
-- `name::Symbol` - Identifier for this metric (e.g., `:validation_loss`)
 - `dataset::D` - Dataset to evaluate on (stored internally)
-- `total_loss::Float64` - Running sum during evaluation
-- `count::Int` - Number of samples evaluated
+- `accumulator::LossAccumulator` - Embedded accumulator holding `name`, `total_loss`, and `count`.
 
 # Examples
 ```julia
@@ -151,11 +139,9 @@ avg_loss = evaluate!(val_metric, context)
 - [`LossAccumulator`](@ref)
 - [`FunctionMetric`](@ref)
 """
-mutable struct FYLLossMetric{D} <: AbstractMetric
-    const name::Symbol
-    const dataset::D
-    total_loss::Float64
-    count::Int
+struct FYLLossMetric{D} <: AbstractMetric
+    dataset::D
+    accumulator::LossAccumulator
 end
 
 """
@@ -174,7 +160,7 @@ test_metric = FYLLossMetric(test_dataset, :test_loss)
 ```
 """
 function FYLLossMetric(dataset, name::Symbol=:fyl_loss)
-    return FYLLossMetric(name, dataset, 0.0, 0)
+    return FYLLossMetric(dataset, LossAccumulator(name))
 end
 
 """
@@ -183,8 +169,15 @@ end
 Reset the metric's accumulated loss to zero.
 """
 function reset!(metric::FYLLossMetric)
-    metric.total_loss = 0.0
-    return metric.count = 0
+    return reset!(metric.accumulator)
+end
+
+function Base.getproperty(metric::FYLLossMetric, s::Symbol)
+    if s === :name
+        return metric.accumulator.name
+    else
+        return getfield(metric, s)
+    end
 end
 
 """
@@ -204,8 +197,7 @@ Update the metric with a single loss computation.
 """
 function update!(metric::FYLLossMetric, loss::FenchelYoungLoss, θ, y_target; kwargs...)
     l = loss(θ, y_target; kwargs...)
-    metric.total_loss += l
-    metric.count += 1
+    update!(metric.accumulator, l)
     return l
 end
 
@@ -231,7 +223,7 @@ context = TrainingContext(model=model, epoch=5, maximizer=maximizer, loss=loss)
 avg_loss = evaluate!(val_metric, context)
 ```
 """
-function evaluate!(metric::FYLLossMetric, context)
+function evaluate!(metric::FYLLossMetric, context::TrainingContext)
     reset!(metric)
     for sample in metric.dataset
         θ = context.model(sample.x)
@@ -250,5 +242,5 @@ Compute the average loss from accumulated values.
 - `Float64` - Average loss (or 0.0 if no values accumulated)
 """
 function compute(metric::FYLLossMetric)
-    return metric.count == 0 ? 0.0 : metric.total_loss / metric.count
+    return compute(metric.accumulator)
 end

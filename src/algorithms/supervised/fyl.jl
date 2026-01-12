@@ -1,6 +1,4 @@
-# TODO: every N epochs
 # TODO: best_model saving method, using default metric validation loss, overwritten in dagger
-# TODO: Implement validation loss as a metric callback
 # TODO: batch training option
 # TODO: parallelize loss computation on validation set
 # TODO: have supervised learning training method, where fyl_train calls it, therefore we can easily test new supervised losses if needed
@@ -19,8 +17,7 @@ function train_policy!(
     algorithm::PerturbedImitationAlgorithm,
     model,
     maximizer,
-    train_dataset::AbstractArray{<:DataSample},
-    validation_dataset;
+    train_dataset::AbstractArray{<:DataSample};
     epochs=100,
     maximizer_kwargs=get_info,
     metrics::Tuple=(),
@@ -85,58 +82,11 @@ end
 function fyl_train_model(
     initial_model,
     maximizer,
-    train_dataset,
-    validation_dataset;
+    train_dataset;
     algorithm=PerturbedImitationAlgorithm(),
     kwargs...,
 )
     model = deepcopy(initial_model)
-    history = train_policy!(
-        algorithm, model, maximizer, train_dataset, validation_dataset; kwargs...
-    )
-    return history, model
-end
-
-function baty_train_model(
-    b::AbstractStochasticBenchmark{true};
-    epochs=10,
-    metrics::Tuple=(),
-    algorithm::PerturbedImitationAlgorithm=PerturbedImitationAlgorithm(),
-)
-    # Generate instances and environments
-    dataset = generate_dataset(b, 30)
-    train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3))
-    train_environments = generate_environments(b, train_instances)
-    validation_environments = generate_environments(b, validation_instances)
-
-    # Generate anticipative solutions
-    train_dataset = vcat(
-        map(train_environments) do env
-            v, y = generate_anticipative_solution(b, env; reset_env=true)
-            return y
-        end...
-    )
-
-    val_dataset = vcat(map(validation_environments) do env
-        v, y = generate_anticipative_solution(b, env; reset_env=true)
-        return y
-    end...)
-
-    # Initialize model and maximizer
-    model = generate_statistical_model(b)
-    maximizer = generate_maximizer(b)
-
-    # Train with algorithm
-    history = train_policy!(
-        algorithm,
-        model,
-        maximizer,
-        train_dataset,
-        val_dataset;
-        epochs=epochs,
-        metrics=metrics,
-        maximizer_kwargs=get_state,
-    )
-
+    history = train_policy!(algorithm, model, maximizer, train_dataset; kwargs...)
     return history, model
 end

@@ -1,5 +1,5 @@
 """
-    PeriodicMetric{M<:AbstractMetric} <: AbstractMetric
+$TYPEDEF
 
 Wrapper that evaluates a metric only every N epochs.
 
@@ -7,9 +7,7 @@ This is useful for expensive metrics that don't need to be computed every epoch
 (e.g., gap computation, test set evaluation).
 
 # Fields
-- `metric::M` - The wrapped metric to evaluate periodically
-- `frequency::Int` - Evaluate every N epochs
-- `offset::Int` - Offset for the first evaluation (default: 0)
+$TYPEDFIELDS
 
 # Behavior
 The metric is evaluated when `(epoch - offset) % frequency == 0`.
@@ -36,45 +34,37 @@ final_test = PeriodicMetric(test_metric, 1; offset=100)
 - [`run_metrics!`](@ref)
 """
 struct PeriodicMetric{M<:AbstractMetric} <: AbstractMetric
+    "the wrapped metric to evaluate periodically"
     metric::M
+    "evaluate every N epochs"
     frequency::Int
+    "offset for the first evaluation"
     offset::Int
 end
 
 """
-    PeriodicMetric(metric::AbstractMetric, frequency::Int; offset::Int=0)
+$TYPEDSIGNATURES
 
 Construct a PeriodicMetric that evaluates the wrapped metric every N epochs.
-
-# Arguments
-- `metric::AbstractMetric` - The metric to wrap
-- `frequency::Int` - Evaluate every N epochs
-- `offset::Int` - Offset for the first evaluation (default: 0)
-
-# Examples
-```julia
-# Every 5 epochs starting from epoch 0
-periodic = PeriodicMetric(gap_metric, 5)
-
-# Every 10 epochs starting from epoch 10
-periodic = PeriodicMetric(gap_metric, 10; offset=10)
-```
 """
 function PeriodicMetric(metric::M, frequency::Int; offset::Int=0) where {M<:AbstractMetric}
     return PeriodicMetric{M}(metric, frequency, offset)
 end
 
 """
-    Base.getproperty(pm::PeriodicMetric, s::Symbol)
+$TYPEDSIGNATURES
+
+Construct a PeriodicMetric from a function to be wrapped.
+"""
+function PeriodicMetric(metric_fn, frequency::Int; offset::Int=0)
+    metric = FunctionMetric(metric_fn, :periodic_metric)
+    return PeriodicMetric{typeof(metric)}(metric, frequency, offset)
+end
+
+"""
+$TYPEDSIGNATURES
 
 Delegate `name` property to the wrapped metric for seamless integration.
-
-# Examples
-```julia
-gap = FunctionMetric(ctx -> 1.0, :val_gap)
-periodic = PeriodicMetric(gap, 5)
-periodic.name  # Returns :val_gap
-```
 """
 function Base.getproperty(pm::PeriodicMetric, s::Symbol)
     if s === :name
@@ -85,7 +75,7 @@ function Base.getproperty(pm::PeriodicMetric, s::Symbol)
 end
 
 """
-    Base.propertynames(pm::PeriodicMetric, private::Bool=false)
+$TYPEDSIGNATURES
 
 List available properties of PeriodicMetric.
 """
@@ -94,7 +84,7 @@ function Base.propertynames(pm::PeriodicMetric, private::Bool=false)
 end
 
 """
-    evaluate!(pm::PeriodicMetric, context)
+$TYPEDSIGNATURES
 
 Evaluate the wrapped metric only if the current epoch matches the frequency pattern.
 
