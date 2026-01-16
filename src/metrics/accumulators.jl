@@ -1,0 +1,236 @@
+"""
+$TYPEDEF
+
+Accumulates loss values during training and computes their average.
+
+This metric is used internally by training loops to track training loss.
+It accumulates loss values via `update!` calls and computes the average via `compute!`.
+
+# Fields
+$TYPEDFIELDS
+
+# Examples
+```julia
+metric = LossAccumulator(:training_loss)
+
+# During training
+for sample in dataset
+    loss_value = compute_loss(model, sample)
+    update!(metric, loss_value)
+end
+
+# Get average and reset
+avg_loss = compute!(metric)  # Automatically resets
+```
+
+# See also
+- [`FYLLossMetric`](@ref)
+- [`reset!`](@ref)
+- [`update!`](@ref)
+- [`compute!`](@ref)
+"""
+mutable struct LossAccumulator
+    "Identifier for this metric (e.g., `:training_loss`)"
+    const name::Symbol
+    "Running sum of loss values"
+    total_loss::Float64
+    "Number of samples accumulated"
+    count::Int
+end
+
+"""
+$TYPEDSIGNATURES
+
+Construct a LossAccumulator with the given name.
+Initializes total loss and count to zero.
+"""
+function LossAccumulator(name::Symbol=:training_loss)
+    return LossAccumulator(name, 0.0, 0)
+end
+
+"""
+$TYPEDSIGNATURES
+
+Reset the accumulator to its initial state (zero total loss and count).
+
+# Examples
+```julia
+metric = LossAccumulator()
+update!(metric, 1.5)
+update!(metric, 2.0)
+reset!(metric)  # total_loss = 0.0, count = 0
+```
+"""
+function reset!(metric::LossAccumulator)
+    metric.total_loss = 0.0
+    return metric.count = 0
+end
+
+"""
+$TYPEDSIGNATURES
+
+Add a loss value to the accumulator.
+
+# Examples
+```julia
+metric = LossAccumulator()
+update!(metric, 1.5)
+update!(metric, 2.0)
+compute!(metric)  # Returns 1.75
+```
+"""
+function update!(metric::LossAccumulator, loss_value::Float64)
+    metric.total_loss += loss_value
+    return metric.count += 1
+end
+
+"""
+$TYPEDSIGNATURES
+
+Compute the average loss from accumulated values.
+
+# Arguments
+- `metric::LossAccumulator` - The accumulator to compute from
+- `reset::Bool` - Whether to reset the accumulator after computing (default: `true`)
+
+# Returns
+- `Float64` - Average loss (or 0.0 if no values accumulated)
+
+# Examples
+```julia
+metric = LossAccumulator()
+update!(metric, 1.5)
+update!(metric, 2.5)
+avg = compute!(metric)  # Returns 2.0, then resets
+```
+"""
+function compute!(metric::LossAccumulator; reset::Bool=true)
+    value = metric.count == 0 ? 0.0 : metric.total_loss / metric.count
+    reset && reset!(metric)
+    return value
+end
+
+# ============================================================================
+
+"""
+$TYPEDEF
+
+Metric for evaluating Fenchel-Young Loss over a dataset.
+
+This metric stores a dataset and computes the average Fenchel-Young Loss
+when `evaluate!` is called. Useful for tracking validation loss during training.
+Can also be used in the algorithms to accumulate loss over training data with `update!`.
+
+# Fields
+$TYPEDFIELDS
+
+# Examples
+```julia
+# Create metric with validation dataset
+val_metric = FYLLossMetric(val_dataset, :validation_loss)
+
+# Evaluate during training (called by evaluate_metrics!)
+context = TrainingContext(policy=policy, epoch=5, loss=loss)
+avg_loss = evaluate!(val_metric, context)
+```
+
+# See also
+- [`LossAccumulator`](@ref)
+- [`FunctionMetric`](@ref)
+"""
+struct FYLLossMetric{D} <: AbstractMetric
+    "dataset to evaluate on"
+    dataset::D
+    "accumulator for loss values"
+    accumulator::LossAccumulator
+end
+
+"""
+    FYLLossMetric(dataset, name::Symbol=:fyl_loss)
+
+Construct a FYLLossMetric for a given dataset.
+
+# Arguments
+- `dataset` - Dataset to evaluate on (should have samples with `.x`, `.y`, and `.info` fields)
+- `name::Symbol` - Identifier for the metric (default: `:fyl_loss`)
+"""
+function FYLLossMetric(dataset, name::Symbol=:fyl_loss)
+    return FYLLossMetric(dataset, LossAccumulator(name))
+end
+
+"""
+$TYPEDSIGNATURES
+
+Reset the metric's accumulated loss to zero.
+"""
+function reset!(metric::FYLLossMetric)
+    return reset!(metric.accumulator)
+end
+
+function Base.getproperty(metric::FYLLossMetric, s::Symbol)
+    if s === :name
+        return metric.accumulator.name
+    else
+        return getfield(metric, s)
+    end
+end
+
+"""
+$TYPEDSIGNATURES
+
+Update the metric with a single loss computation.
+
+# Arguments
+- `metric::FYLLossMetric` - The metric to update
+- `loss::FenchelYoungLoss` - Loss function to use
+- `θ` - Model prediction
+- `y_target` - Target value
+- `kwargs...` - Additional arguments passed to loss function
+"""
+function update!(metric::FYLLossMetric, loss::FenchelYoungLoss, θ, y_target; kwargs...)
+    l = loss(θ, y_target; kwargs...)
+    update!(metric, l)
+    return l
+end
+
+"""
+$TYPEDSIGNATURES
+
+Evaluate the average Fenchel-Young Loss over the stored dataset.
+
+This method iterates through the dataset, computes predictions using `context.policy`,
+and accumulates losses using `context.loss`. The dataset should be stored in the metric.
+
+# Arguments
+- `metric::FYLLossMetric` - The metric to evaluate
+- `context` - TrainingContext with `policy`, `loss`, and other fields
+"""
+function evaluate!(metric::FYLLossMetric, context::TrainingContext)
+    reset!(metric)
+    for sample in metric.dataset
+        θ = context.policy.statistical_model(sample.x)
+        y_target = sample.y
+        update!(metric, context.loss, θ, y_target; context.maximizer_kwargs(sample)...)
+    end
+    return compute!(metric)
+end
+
+"""
+$TYPEDSIGNATURES
+
+Update the metric with an already-computed loss value. This avoids re-evaluating
+the loss inside the metric when the loss was computed during training.
+"""
+function update!(metric::FYLLossMetric, loss_value::Float64)
+    update!(metric.accumulator, loss_value)
+    return loss_value
+end
+
+"""
+$TYPEDSIGNATURES
+
+Compute the average loss from accumulated values.
+"""
+function compute!(metric::FYLLossMetric)
+    return compute!(metric.accumulator)
+end

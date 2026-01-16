@@ -1,24 +1,16 @@
-using DecisionFocusedLearningAlgorithms
 using Test
-using Aqua
-using JET
-using JuliaFormatter
+using DecisionFocusedLearningAlgorithms
 
-@testset "DecisionFocusedLearningAlgorithms.jl" begin
-    @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(
-            DecisionFocusedLearningAlgorithms;
-            ambiguities=false,
-            deps_compat=(check_extras = false),
-        )
+@testset "DecisionFocusedLearningAlgorithms tests" begin
+    @testset "Code quality" begin
+        include("code.jl")
     end
-    @testset "Code linting (JET.jl)" begin
-        JET.test_package(DecisionFocusedLearningAlgorithms; target_defined_modules=true)
+
+    @testset "FYL" begin
+        include("fyl.jl")
     end
-    # Write your tests here.
-    @testset "Code formatting (JuliaFormatter.jl)" begin
-        @test JuliaFormatter.format(
-            DecisionFocusedLearningAlgorithms; verbose=false, overwrite=false
-        )
+
+    @testset "DAgger" begin
+        include("dagger.jl")
     end
 end

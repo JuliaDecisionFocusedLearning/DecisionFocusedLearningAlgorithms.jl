@@ -4,4 +4,8 @@
 /Manifest*.toml
 /docs/Manifest*.toml
 /docs/build/
+tensorboard_logs
 .vscode
+Manifest.toml
+examples
+scripts
