@@ -1,16 +1,47 @@
+"""
+$TYPEDEF
 
-function DAgger_train_model!(
-    model,
-    maximizer,
-    train_environments,
-    anticipative_policy;
-    iterations=5,
-    fyl_epochs=3,
+Dataset Aggregation (DAgger) algorithm for imitation learning.
+
+Reference: <https://arxiv.org/abs/2402.04463>
+
+# Fields
+$TYPEDFIELDS
+"""
+@kwdef struct DAgger{A} <: AbstractImitationAlgorithm
+    "inner imitation algorithm for supervised learning"
+    inner_algorithm::A = PerturbedFenchelYoungLossImitation()
+    "number of DAgger iterations"
+    iterations::Int = 5
+    "number of epochs per DAgger iteration"
+    epochs_per_iteration::Int = 3
+    "decay factor for mixing expert and learned policy"
+    α_decay::Float64 = 0.9
+end
+
+"""
+$TYPEDSIGNATURES
+
+Train a DFLPolicy using the DAgger algorithm on the provided training environments.
+
+# Core training method
+
+Requires `train_environments` and `anticipative_policy` as keyword arguments.
+"""
+function train_policy!(
+    algorithm::DAgger,
+    policy::DFLPolicy,
+    train_environments;
+    anticipative_policy,
     metrics::Tuple=(),
-    algorithm::PerturbedImitationAlgorithm=PerturbedImitationAlgorithm(),
     maximizer_kwargs=get_state,
 )
+    (; inner_algorithm, iterations, epochs_per_iteration, α_decay) = algorithm
+    (; statistical_model, maximizer) = policy
+
     α = 1.0
+
+    # Initial dataset from expert demonstrations
     train_dataset = vcat(map(train_environments) do env
         v, y = anticipative_policy(env; reset_env=true)
         return y
@@ -25,13 +56,12 @@ function DAgger_train_model!(
     for iter in 1:iterations
         println("DAgger iteration $iter/$iterations (α=$(round(α, digits=3)))")
 
-        # Train for fyl_epochs
+        # Train for epochs_per_iteration using inner algorithm
         iter_history = train_policy!(
-            algorithm,
-            model,
-            maximizer,
+            inner_algorithm,
+            policy,
             dataset;
-            epochs=fyl_epochs,
+            epochs=epochs_per_iteration,
             metrics=metrics,
             maximizer_kwargs=maximizer_kwargs,
         )
@@ -66,13 +96,13 @@ function DAgger_train_model!(
         # Update global_epoch for next iteration
         # After each iteration, advance by the number of non-zero epochs processed
         if iter == 1
-            # First iteration processes all epochs [0, 1, ..., fyl_epochs]
-            # Next iteration should start at fyl_epochs + 1
-            global_epoch = fyl_epochs + 1
+            # First iteration processes all epochs [0, 1, ..., epochs_per_iteration]
+            # Next iteration should start at epochs_per_iteration + 1
+            global_epoch = epochs_per_iteration + 1
         else
-            # Subsequent iterations skip epoch 0, so they process fyl_epochs epochs
-            # Next iteration should start fyl_epochs later
-            global_epoch += fyl_epochs
+            # Subsequent iterations skip epoch 0, so they process epochs_per_iteration epochs
+            # Next iteration should start epochs_per_iteration later
+            global_epoch += epochs_per_iteration
         end
 
         # Dataset update - collect new samples using mixed policy
@@ -95,29 +125,59 @@ function DAgger_train_model!(
                     action = target.y
                 else
                     x, state = observe(env)
-                    θ = model(x)
-                    action = maximizer(θ; instance=state)  # ! not benchmark generic
+                    θ = statistical_model(x)
+                    action = maximizer(θ; maximizer_kwargs(target)...)
                 end
                 step!(env, action)
             end
         end
         dataset = new_samples  # TODO: replay buffer
-        α *= 0.9  # Decay factor for mixing expert and learned policy
+        α *= α_decay  # Decay factor for mixing expert and learned policy
     end
 
     return combined_history
 end
 
-function DAgger_train_model(b::AbstractStochasticBenchmark{true}; kwargs...)
-    dataset = generate_dataset(b, 30)
-    train_instances, validation_instances, _ = splitobs(dataset; at=(0.3, 0.3, 0.4))
-    train_environments = generate_environments(b, train_instances; seed=0)
-    model = generate_statistical_model(b)
-    maximizer = generate_maximizer(b)
+"""
+$TYPEDSIGNATURES
+
+Train a DFLPolicy using the DAgger algorithm on a benchmark.
+
+# Benchmark convenience wrapper
+
+This high-level function handles all setup from the benchmark and returns a trained policy.
+"""
+function train_policy(
+    algorithm::DAgger,
+    benchmark::AbstractStochasticBenchmark{true};
+    dataset_size=30,
+    split_ratio=(0.3, 0.3, 0.4),
+    metrics::Tuple=(),
+    seed=0,
+)
+    # Generate dataset and environments
+    dataset = generate_dataset(benchmark, dataset_size)
+    train_instances, validation_instances, _ = splitobs(dataset; at=split_ratio)
+    train_environments = generate_environments(benchmark, train_instances; seed)
+
+    # Initialize model and create policy
+    model = generate_statistical_model(benchmark)
+    maximizer = generate_maximizer(benchmark)
+    policy = DFLPolicy(model, maximizer)
+
+    # Define anticipative policy from benchmark
     anticipative_policy =
-        (env; reset_env) -> generate_anticipative_solution(b, env; reset_env)
-    history = DAgger_train_model!(
-        model, maximizer, train_environments, anticipative_policy; kwargs...
+        (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
+
+    # Train policy
+    history = train_policy!(
+        algorithm,
+        policy,
+        train_environments;
+        anticipative_policy=anticipative_policy,
+        metrics=metrics,
+        maximizer_kwargs=get_state,
     )
-    return history, model
+
+    return history, policy
 end

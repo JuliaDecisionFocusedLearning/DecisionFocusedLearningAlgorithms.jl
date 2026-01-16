@@ -16,16 +16,16 @@ using ValueHistories
     @testset "DAgger - Basic Training" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
         anticipative_policy =
             (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
 
-        history = DAgger_train_model!(
-            model,
-            maximizer,
-            train_envs,
-            anticipative_policy;
-            iterations=2,
-            fyl_epochs=2,
+        algorithm = DAgger(; iterations=2, epochs_per_iteration=2)
+        history = train_policy!(
+            algorithm,
+            policy,
+            train_envs;
+            anticipative_policy=anticipative_policy,
             metrics=(),
         )
 
@@ -41,18 +41,18 @@ using ValueHistories
     @testset "DAgger - With Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
         anticipative_policy =
             (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
 
         metrics = (FunctionMetric(ctx -> ctx.epoch, :epoch),)
 
-        history = DAgger_train_model!(
-            model,
-            maximizer,
-            train_envs,
-            anticipative_policy;
-            iterations=2,
-            fyl_epochs=2,
+        algorithm = DAgger(; iterations=2, epochs_per_iteration=2)
+        history = train_policy!(
+            algorithm,
+            policy,
+            train_envs;
+            anticipative_policy=anticipative_policy,
             metrics=metrics,
         )
 
@@ -63,14 +63,14 @@ using ValueHistories
         @test epoch_values == collect(0:4)  # 0, 1, 2, 3, 4
     end
 
-    @testset "DAgger - Convenience Function" begin
+    @testset "DAgger - Benchmark Wrapper" begin
         # Test the benchmark-based convenience function
-        history, model = DAgger_train_model(
-            benchmark; iterations=2, fyl_epochs=2, metrics=()
-        )
+        algorithm = DAgger(; iterations=2, epochs_per_iteration=2)
+        history, policy = train_policy(algorithm, benchmark; metrics=())
 
         @test history isa MVHistory
-        @test model !== nothing
+        @test policy isa DFLPolicy
+        @test policy.statistical_model !== nothing
         @test haskey(history, :training_loss)
     end
 end
@@ -84,21 +84,20 @@ end
 
         # Define a portable metric
         portable_metric = FunctionMetric(
-            ctx -> compute_gap(benchmark, val_data, ctx.model, ctx.maximizer), :gap
+            ctx -> compute_gap(
+                benchmark, val_data, ctx.policy.statistical_model, ctx.policy.maximizer
+            ),
+            :gap,
         )
 
         # Test with FYL
-        algorithm = PerturbedImitationAlgorithm()
+        algorithm = PerturbedFenchelYoungLossImitation()
         model_fyl = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        policy_fyl = DFLPolicy(model_fyl, maximizer)
 
         history_fyl = train_policy!(
-            algorithm,
-            model_fyl,
-            maximizer,
-            train_data;
-            epochs=2,
-            metrics=(portable_metric,),
+            algorithm, policy_fyl, train_data; epochs=2, metrics=(portable_metric,)
         )
 
         @test haskey(history_fyl, :gap)
@@ -111,9 +110,10 @@ end
         dataset = generate_dataset(benchmark, 15)
         train_data, val_data = splitobs(dataset; at=0.7)
 
-        algorithm = PerturbedImitationAlgorithm()
+        algorithm = PerturbedFenchelYoungLossImitation()
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
 
         loss_checker = FunctionMetric(ctx -> begin
             # Verify loss exists in context
@@ -123,7 +123,7 @@ end
         end, :loss_check)
 
         history = train_policy!(
-            algorithm, model, maximizer, train_data; epochs=2, metrics=(loss_checker,)
+            algorithm, policy, train_data; epochs=2, metrics=(loss_checker,)
         )
 
         @test haskey(history, :loss_check)

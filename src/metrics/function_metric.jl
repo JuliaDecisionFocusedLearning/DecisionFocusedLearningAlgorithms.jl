@@ -54,17 +54,6 @@ The function should have signature `(context) -> value`.
 # Arguments
 - `metric_fn::Function` - Function to compute the metric
 - `name::Symbol` - Identifier for the metric
-
-# Examples
-```julia
-# Track current epoch
-epoch_metric = FunctionMetric(ctx -> ctx.epoch, :epoch)
-
-# Track model parameter norm
-param_norm = FunctionMetric(:param_norm) do ctx
-    sum(abs2, Flux.params(ctx.model))
-end
-```
 """
 function FunctionMetric(metric_fn::F, name::Symbol) where {F}
     return FunctionMetric{F,Nothing}(metric_fn, name, nothing)
@@ -81,12 +70,6 @@ Evaluate the function metric by calling the stored function.
 
 # Returns
 - The value returned by `metric.metric_fn` (can be single value or NamedTuple)
-
-# Examples
-```julia
-metric = FunctionMetric(ctx -> ctx.epoch, :epoch)
-context = TrainingContext(model=model, epoch=5, maximizer=maximizer)
-value = evaluate!(metric, context)  # Returns 5
 ```
 """
 function evaluate!(metric::FunctionMetric, context::TrainingContext)

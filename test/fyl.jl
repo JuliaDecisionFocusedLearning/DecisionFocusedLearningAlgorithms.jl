@@ -14,12 +14,11 @@ using ValueHistories
     @testset "FYL Training - Basic" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
-        algorithm = PerturbedImitationAlgorithm()
+        policy = DFLPolicy(model, maximizer)
+        algorithm = PerturbedFenchelYoungLossImitation()
 
         # Test basic training runs without error
-        history = train_policy!(
-            algorithm, model, maximizer, train_data; epochs=3, metrics=()
-        )
+        history = train_policy!(algorithm, policy, train_data; epochs=3, metrics=())
 
         # Check that history is returned
         @test history isa MVHistory
@@ -40,7 +39,8 @@ using ValueHistories
     @testset "FYL Training - With Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
-        algorithm = PerturbedImitationAlgorithm()
+        policy = DFLPolicy(model, maximizer)
+        algorithm = PerturbedFenchelYoungLossImitation()
 
         # Create loss metric
         val_loss_metric = FYLLossMetric(val_data, :validation_loss)
@@ -50,14 +50,12 @@ using ValueHistories
 
         # Create metric with stored data
         gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
-            compute_gap(benchmark, data, ctx.model, ctx.maximizer)
+            compute_gap(benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer)
         end
 
         metrics = (val_loss_metric, epoch_metric, gap_metric)
 
-        history = train_policy!(
-            algorithm, model, maximizer, train_data; epochs=3, metrics=metrics
-        )
+        history = train_policy!(algorithm, policy, train_data; epochs=3, metrics=metrics)
 
         # Check metrics are recorded
         @test haskey(history, :validation_loss)
@@ -82,43 +80,42 @@ using ValueHistories
     @testset "FYL Training - Context Fields" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
-        algorithm = PerturbedImitationAlgorithm()
+        policy = DFLPolicy(model, maximizer)
+        algorithm = PerturbedFenchelYoungLossImitation()
 
         # Metric that checks context structure
         context_checker = FunctionMetric(
             ctx -> begin
                 # Check required core fields exist
                 @test hasproperty(ctx, :epoch)
-                @test hasproperty(ctx, :model)
-                @test hasproperty(ctx, :maximizer)
+                @test hasproperty(ctx, :policy)
 
                 # Check types
                 @test ctx.epoch isa Int
-                @test ctx.model !== nothing
-                @test ctx.maximizer !== nothing  # maximizer can be any callable
+                @test ctx.policy !== nothing
+                @test ctx.policy isa DFLPolicy
 
                 return 1.0  # dummy value
             end, :context_check
         )
 
         history = train_policy!(
-            algorithm, model, maximizer, train_data; epochs=2, metrics=(context_checker,)
+            algorithm, policy, train_data; epochs=2, metrics=(context_checker,)
         )
 
         @test haskey(history, :context_check)
     end
 
-    @testset "FYL Training - fyl_train_model (non-mutating)" begin
-        initial_model = generate_statistical_model(benchmark)
-        maximizer = generate_maximizer(benchmark)
+    @testset "FYL Training - Benchmark Wrapper (non-mutating)" begin
+        algorithm = PerturbedFenchelYoungLossImitation()
 
-        # Test non-mutating version
-        history, trained_model = fyl_train_model(
-            initial_model, maximizer, train_data; epochs=2
+        # Test benchmark wrapper version
+        history, trained_policy = train_policy(
+            algorithm, benchmark; dataset_size=30, epochs=2
         )
 
         @test history isa MVHistory
-        @test trained_model !== initial_model  # Should be a copy
+        @test trained_policy isa DFLPolicy
 
         # Check history structure
         @test haskey(history, :training_loss)
@@ -127,13 +124,12 @@ using ValueHistories
     @testset "Multiple Metrics" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
-        algorithm = PerturbedImitationAlgorithm()
+        policy = DFLPolicy(model, maximizer)
+        algorithm = PerturbedFenchelYoungLossImitation()
 
         metrics = (FunctionMetric(ctx -> Float64(ctx.epoch^2), :epoch_squared),)
 
-        history = train_policy!(
-            algorithm, model, maximizer, train_data; epochs=3, metrics=metrics
-        )
+        history = train_policy!(algorithm, policy, train_data; epochs=3, metrics=metrics)
 
         # Metric should be tracked
         @test haskey(history, :epoch_squared)

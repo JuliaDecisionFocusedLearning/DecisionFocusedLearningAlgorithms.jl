@@ -14,7 +14,10 @@ using DecisionFocusedLearningAlgorithms
 end
 
 @testset "JET" begin
-    JET.test_package(DecisionFocusedLearningAlgorithms; target_defined_modules=true)
+    JET.test_package(
+        DecisionFocusedLearningAlgorithms;
+        target_modules=[DecisionFocusedLearningAlgorithms],
+    )
 end
 
 @testset "JuliaFormatter" begin

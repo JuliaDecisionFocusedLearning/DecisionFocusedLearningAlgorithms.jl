@@ -7,30 +7,28 @@ Lightweight mutable context object passed to metrics during training.
 $TYPEDFIELDS
 
 # Notes
-- `model`, `maximizer`, `maximizer_kwargs`, and `other_fields` are constant after construction; only `epoch` is intended to be mutated.
+- `policy`, `maximizer_kwargs`, and `other_fields` are constant after construction; only `epoch` is intended to be mutated.
 """
-mutable struct TrainingContext{M,MX,F,O<:NamedTuple}
-    "the ML model being trained"
-    const model::M
+mutable struct TrainingContext{P,F,O<:NamedTuple}
+    "the DFLPolicy being trained"
+    const policy::P
     "current epoch number (mutated in-place during training)"
     epoch::Int
-    "CO maximizer used for decision-making (can be any callable)"
-    const maximizer::MX
     "function to extract keyword arguments for maximizer calls from data samples"
     const maximizer_kwargs::F
     "`NamedTuple` container of additional algorithm-specific configuration (e.g., loss)"
     const other_fields::O
 end
 
-function TrainingContext(; model, epoch, maximizer, maximizer_kwargs=get_info, kwargs...)
+function TrainingContext(; policy, epoch, maximizer_kwargs=get_info, kwargs...)
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
-    return TrainingContext(model, epoch, maximizer, maximizer_kwargs, other_fields)
+    return TrainingContext(policy, epoch, maximizer_kwargs, other_fields)
 end
 
 function Base.show(io::IO, ctx::TrainingContext)
     print(io, "TrainingContext(")
     print(io, "epoch=$(ctx.epoch), ")
-    print(io, "model=$(typeof(ctx.model))")
+    print(io, "policy=$(typeof(ctx.policy))")
     if !isempty(ctx.other_fields)
         print(io, ", other_fields=$(keys(ctx.other_fields))")
     end

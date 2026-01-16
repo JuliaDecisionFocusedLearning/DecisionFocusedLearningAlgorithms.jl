@@ -91,7 +91,7 @@ This function handles three types of metric returns through multiple dispatch:
 # Arguments
 - `history::MVHistory` - MVHistory object to store metric values
 - `metrics::Tuple` - Tuple of AbstractMetric instances to evaluate
-- `context::TrainingContext` - TrainingContext with current training state (model, epoch, maximizer, etc.)
+- `context::TrainingContext` - TrainingContext with current training state (policy, epoch, etc.)
 
 # Examples
 ```julia
@@ -100,7 +100,7 @@ val_loss = FYLLossMetric(val_dataset, :validation_loss)
 epoch_metric = FunctionMetric(ctx -> ctx.epoch, :current_epoch)
 
 # Evaluate and store
-context = TrainingContext(model=model, epoch=5, maximizer=maximizer)
+context = TrainingContext(policy=policy, epoch=5)
 evaluate_metrics!(history, (val_loss, epoch_metric), context)
 ```
 

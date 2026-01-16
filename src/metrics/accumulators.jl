@@ -4,7 +4,7 @@ $TYPEDEF
 Accumulates loss values during training and computes their average.
 
 This metric is used internally by training loops to track training loss.
-It accumulates loss values via `update!` calls and computes the average via `compute`.
+It accumulates loss values via `update!` calls and computes the average via `compute!`.
 
 # Fields
 $TYPEDFIELDS
@@ -27,7 +27,7 @@ avg_loss = compute!(metric)  # Automatically resets
 - [`FYLLossMetric`](@ref)
 - [`reset!`](@ref)
 - [`update!`](@ref)
-- [`compute`](@ref)
+- [`compute!`](@ref)
 """
 mutable struct LossAccumulator
     "Identifier for this metric (e.g., `:training_loss`)"
@@ -113,17 +113,16 @@ end
 # ============================================================================
 
 """
-    FYLLossMetric{D} <: AbstractMetric
+$TYPEDEF
 
 Metric for evaluating Fenchel-Young Loss over a dataset.
 
 This metric stores a dataset and computes the average Fenchel-Young Loss
 when `evaluate!` is called. Useful for tracking validation loss during training.
-Can also be used in the algorithms to accumulate loss over training data.
+Can also be used in the algorithms to accumulate loss over training data with `update!`.
 
 # Fields
-- `dataset::D` - Dataset to evaluate on (stored internally)
-- `accumulator::LossAccumulator` - Embedded accumulator holding `name`, `total_loss`, and `count`.
+$TYPEDFIELDS
 
 # Examples
 ```julia
@@ -131,7 +130,7 @@ Can also be used in the algorithms to accumulate loss over training data.
 val_metric = FYLLossMetric(val_dataset, :validation_loss)
 
 # Evaluate during training (called by evaluate_metrics!)
-context = TrainingContext(model=model, epoch=5, maximizer=maximizer, loss=loss)
+context = TrainingContext(policy=policy, epoch=5, loss=loss)
 avg_loss = evaluate!(val_metric, context)
 ```
 
@@ -140,7 +139,9 @@ avg_loss = evaluate!(val_metric, context)
 - [`FunctionMetric`](@ref)
 """
 struct FYLLossMetric{D} <: AbstractMetric
+    "dataset to evaluate on"
     dataset::D
+    "accumulator for loss values"
     accumulator::LossAccumulator
 end
 
@@ -152,19 +153,13 @@ Construct a FYLLossMetric for a given dataset.
 # Arguments
 - `dataset` - Dataset to evaluate on (should have samples with `.x`, `.y`, and `.info` fields)
 - `name::Symbol` - Identifier for the metric (default: `:fyl_loss`)
-
-# Examples
-```julia
-val_metric = FYLLossMetric(val_dataset, :validation_loss)
-test_metric = FYLLossMetric(test_dataset, :test_loss)
-```
 """
 function FYLLossMetric(dataset, name::Symbol=:fyl_loss)
     return FYLLossMetric(dataset, LossAccumulator(name))
 end
 
 """
-    reset!(metric::FYLLossMetric)
+$TYPEDSIGNATURES
 
 Reset the metric's accumulated loss to zero.
 """
@@ -181,7 +176,7 @@ function Base.getproperty(metric::FYLLossMetric, s::Symbol)
 end
 
 """
-    update!(metric::FYLLossMetric, loss::FenchelYoungLoss, θ, y_target; kwargs...)
+$TYPEDSIGNATURES
 
 Update the metric with a single loss computation.
 
@@ -191,42 +186,29 @@ Update the metric with a single loss computation.
 - `θ` - Model prediction
 - `y_target` - Target value
 - `kwargs...` - Additional arguments passed to loss function
-
-# Returns
-- The computed loss value
 """
 function update!(metric::FYLLossMetric, loss::FenchelYoungLoss, θ, y_target; kwargs...)
     l = loss(θ, y_target; kwargs...)
-    update!(metric.accumulator, l)
+    update!(metric, l)
     return l
 end
 
 """
-    evaluate!(metric::FYLLossMetric, context)
+$TYPEDSIGNATURES
 
 Evaluate the average Fenchel-Young Loss over the stored dataset.
 
-This method iterates through the dataset, computes predictions using `context.model`,
+This method iterates through the dataset, computes predictions using `context.policy`,
 and accumulates losses using `context.loss`. The dataset should be stored in the metric.
 
 # Arguments
 - `metric::FYLLossMetric` - The metric to evaluate
-- `context` - TrainingContext with `model`, `loss`, and other fields
-
-# Returns
-- `Float64` - Average loss over the dataset
-
-# Examples
-```julia
-val_metric = FYLLossMetric(val_dataset, :validation_loss)
-context = TrainingContext(model=model, epoch=5, maximizer=maximizer, loss=loss)
-avg_loss = evaluate!(val_metric, context)
-```
+- `context` - TrainingContext with `policy`, `loss`, and other fields
 """
 function evaluate!(metric::FYLLossMetric, context::TrainingContext)
     reset!(metric)
     for sample in metric.dataset
-        θ = context.model(sample.x)
+        θ = context.policy.statistical_model(sample.x)
         y_target = sample.y
         update!(metric, context.loss, θ, y_target; context.maximizer_kwargs(sample)...)
     end
@@ -238,9 +220,6 @@ $TYPEDSIGNATURES
 
 Update the metric with an already-computed loss value. This avoids re-evaluating
 the loss inside the metric when the loss was computed during training.
-
-# Returns
-- `Float64` - The provided loss value
 """
 function update!(metric::FYLLossMetric, loss_value::Float64)
     update!(metric.accumulator, loss_value)
@@ -248,12 +227,9 @@ function update!(metric::FYLLossMetric, loss_value::Float64)
 end
 
 """
-    compute!(metric::FYLLossMetric)
+$TYPEDSIGNATURES
 
 Compute the average loss from accumulated values.
-
-# Returns
-- `Float64` - Average loss (or 0.0 if no values accumulated)
 """
 function compute!(metric::FYLLossMetric)
     return compute!(metric.accumulator)
