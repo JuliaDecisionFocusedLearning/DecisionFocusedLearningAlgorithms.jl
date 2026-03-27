@@ -4,7 +4,7 @@ using DecisionFocusedLearningBenchmarks
 using DocStringExtensions: TYPEDEF, TYPEDFIELDS, TYPEDSIGNATURES
 using Flux: Flux, Adam
 using InferOpt: InferOpt, FenchelYoungLoss, PerturbedAdditive, PerturbedMultiplicative
-using MLUtils: splitobs, DataLoader
+using MLUtils: DataLoader
 using ProgressMeter: @showprogress
 using Random: Random, MersenneTwister
 using Statistics: mean
@@ -39,6 +39,7 @@ export AbstractMetric,
     compute!,
     evaluate_metrics!
 
+export AbstractAlgorithm, AbstractImitationAlgorithm
 export PerturbedFenchelYoungLossImitation,
     DAgger, AnticipativeImitation, train_policy!, train_policy
 export AbstractPolicy, DFLPolicy

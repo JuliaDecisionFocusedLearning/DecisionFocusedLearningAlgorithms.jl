@@ -79,7 +79,7 @@ Metrics must return a `Number`, a `NamedTuple`, or `nothing`.
 function _store_metric_value!(::MVHistory, metric_name::Symbol, ::Int, value)
     return error(
         "Metric `$metric_name` returned a value of type $(typeof(value)), which cannot " *
-        "be stored in history. Metrics must return a Number, a NamedTuple, or nothing."
+        "be stored in history. Metrics must return a Number, a NamedTuple, or nothing.",
     )
 end
 
