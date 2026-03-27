@@ -89,11 +89,10 @@ function train_policy!(
         for env in train_environments
             DecisionFocusedLearningBenchmarks.reset!(env; reset_rng=false)
             while !is_terminated(env)
-                x_before = copy(observe(env)[1])
                 anticipative_solution = anticipative_policy(env; reset_env=false)
                 p = rand(rng)
                 target = anticipative_solution[1]
-                x, state = observe(env)
+                x, _ = observe(env)
                 if size(target.x) != size(x)
                     @error "Mismatch between expert and observed state" size(target.x) size(
                         x
@@ -103,7 +102,6 @@ function train_policy!(
                 if p < α
                     action = target.y
                 else
-                    x, state = observe(env)
                     θ = statistical_model(x)
                     action = maximizer(θ; maximizer_kwargs(target)...)
                 end
@@ -134,13 +132,13 @@ function train_policy(
     benchmark::ExogenousDynamicBenchmark;
     dataset_size=30,
     metrics::Tuple=(),
-    seed=0,
+    seed=nothing,
 )
     # Generate environments
     train_environments = generate_environments(benchmark, dataset_size; seed)
 
     # Initialize model and create policy
-    model = generate_statistical_model(benchmark)
+    model = generate_statistical_model(benchmark; seed)
     maximizer = generate_maximizer(benchmark)
     policy = DFLPolicy(model, maximizer)
 
