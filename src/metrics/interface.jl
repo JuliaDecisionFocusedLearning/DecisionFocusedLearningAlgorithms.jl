@@ -4,7 +4,7 @@ $TYPEDEF
 Abstract base type for all metrics used during training.
 
 All concrete metric types should implement:
-- `evaluate!(metric, context)` - Evaluate the metric given a training context
+- `evaluate!(metric, context)`: Evaluate the metric given a training context
 
 # See also
 - [`LossAccumulator`](@ref)
@@ -20,14 +20,14 @@ abstract type AbstractMetric end
 Evaluate the metric given the current training context.
 
 # Arguments
-- `metric::AbstractMetric` - The metric to evaluate
-- `context::TrainingContext` - Current training state (model, epoch, maximizer, etc.)
+- `metric::AbstractMetric`: The metric to evaluate
+- `context::TrainingContext`: Current training state (model, epoch, maximizer, etc.)
 
 # Returns
 Can return:
-- A single value (Float64, Int, etc.) - stored with `metric.name`
-- A `NamedTuple` - each key-value pair stored separately
-- `nothing` - skipped (e.g., periodic metrics on off-epochs)
+- A single value (Float64, Int, etc.): stored with `metric.name`
+- A `NamedTuple`: each key-value pair stored separately
+- `nothing`: skipped (e.g., periodic metrics on off-epochs)
 """
 function evaluate! end
 
@@ -43,15 +43,7 @@ Internal helper to store a single metric value in the history.
 function _store_metric_value!(
     history::MVHistory, metric_name::Symbol, epoch::Int, value::Number
 )
-    try
-        push!(history, metric_name, epoch, value)
-    catch e
-        throw(
-            ErrorException(
-                "Failed to store metric '$metric_name' at epoch $epoch: $(e.msg)"
-            ),
-        )
-    end
+    push!(history, metric_name, epoch, value)
     return nothing
 end
 
@@ -81,6 +73,19 @@ end
 """
 $TYPEDSIGNATURES
 
+Fallback that throws a descriptive error for unsupported return types.
+Metrics must return a `Number`, a `NamedTuple`, or `nothing`.
+"""
+function _store_metric_value!(::MVHistory, metric_name::Symbol, ::Int, value)
+    return error(
+        "Metric `$metric_name` returned a value of type $(typeof(value)), which cannot " *
+        "be stored in history. Metrics must return a Number, a NamedTuple, or nothing.",
+    )
+end
+
+"""
+$TYPEDSIGNATURES
+
 Evaluate all metrics and store their results in the history.
 
 This function handles three types of metric returns through multiple dispatch:
@@ -89,9 +94,9 @@ This function handles three types of metric returns through multiple dispatch:
 - **nothing**: Skipped (e.g., periodic metrics on epochs when not evaluated)
 
 # Arguments
-- `history::MVHistory` - MVHistory object to store metric values
-- `metrics::Tuple` - Tuple of AbstractMetric instances to evaluate
-- `context::TrainingContext` - TrainingContext with current training state (policy, epoch, etc.)
+- `history::MVHistory`: MVHistory object to store metric values
+- `metrics::Tuple`: Tuple of AbstractMetric instances to evaluate
+- `context::TrainingContext`: TrainingContext with current training state (policy, epoch, etc.)
 
 # Examples
 ```julia

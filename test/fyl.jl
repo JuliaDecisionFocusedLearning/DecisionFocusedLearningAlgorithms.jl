@@ -138,4 +138,23 @@ using ValueHistories
         _, epoch_sq_values = get(history, :epoch_squared)
         @test epoch_sq_values == [0.0, 1.0, 4.0, 9.0]
     end
+
+    @testset "PeriodicMetric offset guard" begin
+        model = generate_statistical_model(benchmark)
+        maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
+        algorithm = PerturbedFenchelYoungLossImitation()
+
+        fired_at = Int[]
+        probe = FunctionMetric(ctx -> (push!(fired_at, ctx.epoch); nothing), :probe)
+        # offset=5: should fire at epochs 5, 10, ... but NOT at epoch 0
+        periodic = PeriodicMetric(probe, 5; offset=5)
+
+        train_policy!(algorithm, policy, train_data; epochs=10, metrics=(periodic,))
+
+        @test 0 ∉ fired_at   # must not fire before offset
+        @test 5 ∈ fired_at   # must fire at offset
+        @test 10 ∈ fired_at  # must fire at offset + frequency
+        @test 3 ∉ fired_at   # must not fire between
+    end
 end

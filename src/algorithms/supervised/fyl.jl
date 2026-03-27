@@ -45,7 +45,7 @@ function train_policy!(
     train_dataset::DataLoader;
     epochs=100,
     metrics::Tuple=(),
-    maximizer_kwargs=get_info,
+    maximizer_kwargs=sample -> sample.context,
 )
     (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
     (; statistical_model, maximizer) = policy
@@ -106,7 +106,7 @@ function train_policy!(
     train_dataset::AbstractArray{<:DataSample};
     epochs=100,
     metrics::Tuple=(),
-    maximizer_kwargs=get_info,
+    maximizer_kwargs=sample -> sample.context,
 )
     data_loader = DataLoader(train_dataset; batchsize=1, shuffle=false)
     return train_policy!(
@@ -117,39 +117,4 @@ function train_policy!(
         metrics=metrics,
         maximizer_kwargs=maximizer_kwargs,
     )
-end
-
-"""
-$TYPEDSIGNATURES
-
-Train a DFLPolicy using the Perturbed Fenchel-Young Loss Imitation Algorithm on a benchmark.
-
-# Benchmark convenience wrapper
-
-This high-level function handles all setup from the benchmark and returns a trained policy.
-"""
-function train_policy(
-    algorithm::PerturbedFenchelYoungLossImitation,
-    benchmark::AbstractBenchmark;
-    dataset_size=30,
-    split_ratio=(0.3, 0.3),
-    epochs=100,
-    metrics::Tuple=(),
-    seed=nothing,
-)
-    # Generate dataset and split
-    dataset = generate_dataset(benchmark, dataset_size)
-    train_instances, _, _ = splitobs(dataset; at=split_ratio)
-
-    # Initialize model and create policy
-    model = generate_statistical_model(benchmark; seed)
-    maximizer = generate_maximizer(benchmark)
-    policy = DFLPolicy(model, maximizer)
-
-    # Train policy
-    history = train_policy!(
-        algorithm, policy, train_instances; epochs, metrics, maximizer_kwargs=get_info
-    )
-
-    return history, policy
 end

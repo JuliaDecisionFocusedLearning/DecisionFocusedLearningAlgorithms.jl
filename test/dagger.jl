@@ -7,18 +7,13 @@ using ValueHistories
 @testset "DAgger Training" begin
     # Use a simple dynamic benchmark
     benchmark = DynamicVehicleSchedulingBenchmark(; two_dimensional_features=true)
-    dataset = generate_dataset(benchmark, 10)  # Small for speed
-    train_instances, val_instances = splitobs(dataset; at=0.6)
-
-    train_envs = generate_environments(benchmark, train_instances; seed=0)
-    val_envs = generate_environments(benchmark, val_instances; seed=1)
+    train_envs = generate_environments(benchmark, 6; seed=0)
 
     @testset "DAgger - Basic Training" begin
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
         policy = DFLPolicy(model, maximizer)
-        anticipative_policy =
-            (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
+        anticipative_policy = generate_anticipative_solver(benchmark)
 
         algorithm = DAgger(; iterations=2, epochs_per_iteration=2)
         history = train_policy!(
@@ -42,8 +37,7 @@ using ValueHistories
         model = generate_statistical_model(benchmark)
         maximizer = generate_maximizer(benchmark)
         policy = DFLPolicy(model, maximizer)
-        anticipative_policy =
-            (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
+        anticipative_policy = generate_anticipative_solver(benchmark)
 
         metrics = (FunctionMetric(ctx -> ctx.epoch, :epoch),)
 
@@ -66,11 +60,27 @@ using ValueHistories
     @testset "DAgger - Benchmark Wrapper" begin
         # Test the benchmark-based convenience function
         algorithm = DAgger(; iterations=2, epochs_per_iteration=2)
-        history, policy = train_policy(algorithm, benchmark; metrics=())
+        history, policy = train_policy(
+            algorithm, benchmark; metrics=(), seed=42, dataset_size=5
+        )
 
         @test history isa MVHistory
         @test policy isa DFLPolicy
         @test policy.statistical_model !== nothing
+        @test haskey(history, :training_loss)
+    end
+
+    @testset "DAgger - max_dataset_size cap" begin
+        algorithm = DAgger(; iterations=2, epochs_per_iteration=1, max_dataset_size=10)
+        model = generate_statistical_model(benchmark)
+        maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
+        anticipative_policy = generate_anticipative_solver(benchmark)
+
+        history = train_policy!(
+            algorithm, policy, train_envs; anticipative_policy=anticipative_policy
+        )
+        @test history isa MVHistory
         @test haskey(history, :training_loss)
     end
 end

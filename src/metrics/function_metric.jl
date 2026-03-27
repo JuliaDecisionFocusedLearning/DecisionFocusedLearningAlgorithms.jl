@@ -18,21 +18,21 @@ epoch_metric = FunctionMetric(ctx -> ctx.epoch, :current_epoch)
 
 # Metric with stored data (dataset)
 gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
-    compute_gap(benchmark, data, ctx.model, ctx.maximizer)
+    compute_gap(benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer)
 end
 
 # Metric returning multiple values
 dual_gap = FunctionMetric(:gaps, (train_data, val_data)) do ctx, datasets
     train_ds, val_ds = datasets
     return (
-        train_gap = compute_gap(benchmark, train_ds, ctx.model, ctx.maximizer),
-        val_gap = compute_gap(benchmark, val_ds, ctx.model, ctx.maximizer)
+        train_gap = compute_gap(benchmark, train_ds, ctx.policy.statistical_model, ctx.policy.maximizer),
+        val_gap = compute_gap(benchmark, val_ds, ctx.policy.statistical_model, ctx.policy.maximizer)
     )
 end
 ```
 
 # See also
-- [`PeriodicMetric`](@ref) - Wrap a metric to evaluate periodically
+- [`PeriodicMetric`](@ref): Wrap a metric to evaluate periodically
 - [`evaluate!`](@ref)
 """
 struct FunctionMetric{F,D} <: AbstractMetric
@@ -52,8 +52,8 @@ Construct a FunctionMetric without stored data.
 The function should have signature `(context) -> value`.
 
 # Arguments
-- `metric_fn::Function` - Function to compute the metric
-- `name::Symbol` - Identifier for the metric
+- `metric_fn::Function`: Function to compute the metric
+- `name::Symbol`: Identifier for the metric
 """
 function FunctionMetric(metric_fn::F, name::Symbol) where {F}
     return FunctionMetric{F,Nothing}(metric_fn, name, nothing)
@@ -65,8 +65,8 @@ $TYPEDSIGNATURES
 Evaluate the function metric by calling the stored function.
 
 # Arguments
-- `metric::FunctionMetric` - The metric to evaluate
-- `context` - TrainingContext with current training state
+- `metric::FunctionMetric`: The metric to evaluate
+- `context::TrainingContext`: TrainingContext with current training state
 
 # Returns
 - The value returned by `metric.metric_fn` (can be single value or NamedTuple)
