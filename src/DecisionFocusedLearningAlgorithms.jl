@@ -6,6 +6,7 @@ using Flux: Flux, Adam
 using InferOpt: InferOpt, FenchelYoungLoss, PerturbedAdditive, PerturbedMultiplicative
 using MLUtils: splitobs, DataLoader
 using ProgressMeter: @showprogress
+using Random: Random, MersenneTwister
 using Statistics: mean
 using UnicodePlots: lineplot
 using ValueHistories: MVHistory

@@ -10,7 +10,7 @@ This is useful for expensive metrics that don't need to be computed every epoch
 $TYPEDFIELDS
 
 # Behavior
-The metric is evaluated when `(epoch - offset) % frequency == 0`.
+The metric is evaluated when `epoch >= offset` and `(epoch - offset) % frequency == 0`.
 On other epochs, `evaluate!` returns `nothing` (which is skipped by `evaluate_metrics!`).
 
 # See also
@@ -82,7 +82,7 @@ Evaluate the wrapped metric only if the current epoch matches the frequency patt
 - `nothing` otherwise (which is skipped by `evaluate_metrics!`)
 """
 function evaluate!(pm::PeriodicMetric, context)
-    if (context.epoch - pm.offset) % pm.frequency == 0
+    if context.epoch >= pm.offset && (context.epoch - pm.offset) % pm.frequency == 0
         return evaluate!(pm.metric, context)
     else
         return nothing  # Skip evaluation on this epoch

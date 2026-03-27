@@ -69,6 +69,20 @@ using ValueHistories
         @test policy.statistical_model !== nothing
         @test haskey(history, :training_loss)
     end
+
+    @testset "DAgger - max_dataset_size cap" begin
+        algorithm = DAgger(; iterations=2, epochs_per_iteration=1, max_dataset_size=10)
+        model = generate_statistical_model(benchmark)
+        maximizer = generate_maximizer(benchmark)
+        policy = DFLPolicy(model, maximizer)
+        anticipative_policy = generate_anticipative_solver(benchmark)
+
+        history = train_policy!(
+            algorithm, policy, train_envs; anticipative_policy=anticipative_policy
+        )
+        @test history isa MVHistory
+        @test haskey(history, :training_loss)
+    end
 end
 
 @testset "Integration Tests" begin

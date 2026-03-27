@@ -8,7 +8,7 @@ Reference: <https://arxiv.org/abs/2402.04463>
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct DAgger{A} <: AbstractImitationAlgorithm
+@kwdef struct DAgger{A,S} <: AbstractImitationAlgorithm
     "inner imitation algorithm for supervised learning"
     inner_algorithm::A = PerturbedFenchelYoungLossImitation()
     "number of DAgger iterations"
@@ -17,6 +17,11 @@ $TYPEDFIELDS
     epochs_per_iteration::Int = 3
     "decay factor for mixing expert and learned policy"
     α_decay::Float64 = 0.9
+    "random seed for the expert/policy mixing coin-flip (nothing = non-reproducible)"
+    seed::S = nothing
+    "maximum dataset size across iterations (nothing keeps all samples,
+    an integer caps to the most recent N samples via FIFO)"
+    max_dataset_size::Union{Int,Nothing} = nothing
 end
 
 """
@@ -36,9 +41,10 @@ function train_policy!(
     metrics::Tuple=(),
     maximizer_kwargs=sample -> sample.context,
 )
-    (; inner_algorithm, iterations, epochs_per_iteration, α_decay) = algorithm
+    (; inner_algorithm, iterations, epochs_per_iteration, α_decay, seed) = algorithm
     (; statistical_model, maximizer) = policy
 
+    rng = isnothing(seed) ? MersenneTwister() : MersenneTwister(seed)
     α = 1.0
 
     # Initial dataset from expert demonstrations
@@ -85,7 +91,7 @@ function train_policy!(
             while !is_terminated(env)
                 x_before = copy(observe(env)[1])
                 anticipative_solution = anticipative_policy(env; reset_env=false)
-                p = rand()
+                p = rand(rng)
                 target = anticipative_solution[1]
                 x, state = observe(env)
                 if size(target.x) != size(x)
@@ -104,7 +110,10 @@ function train_policy!(
                 step!(env, action)
             end
         end
-        dataset = new_samples  # TODO: replay buffer
+        dataset = vcat(dataset, new_samples)
+        if !isnothing(algorithm.max_dataset_size)
+            dataset = last(dataset, algorithm.max_dataset_size)
+        end
         α *= α_decay  # Decay factor for mixing expert and learned policy
     end
 

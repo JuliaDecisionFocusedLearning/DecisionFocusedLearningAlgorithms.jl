@@ -43,15 +43,7 @@ Internal helper to store a single metric value in the history.
 function _store_metric_value!(
     history::MVHistory, metric_name::Symbol, epoch::Int, value::Number
 )
-    try
-        push!(history, metric_name, epoch, value)
-    catch e
-        throw(
-            ErrorException(
-                "Failed to store metric '$metric_name' at epoch $epoch: $(e.msg)"
-            ),
-        )
-    end
+    push!(history, metric_name, epoch, value)
     return nothing
 end
 
@@ -76,6 +68,19 @@ Used by periodic metrics on epochs when they're not evaluated.
 """
 function _store_metric_value!(::MVHistory, ::Symbol, ::Int, ::Nothing)
     return nothing
+end
+
+"""
+$TYPEDSIGNATURES
+
+Fallback that throws a descriptive error for unsupported return types.
+Metrics must return a `Number`, a `NamedTuple`, or `nothing`.
+"""
+function _store_metric_value!(::MVHistory, metric_name::Symbol, ::Int, value)
+    return error(
+        "Metric `$metric_name` returned a value of type $(typeof(value)), which cannot " *
+        "be stored in history. Metrics must return a Number, a NamedTuple, or nothing."
+    )
 end
 
 """
