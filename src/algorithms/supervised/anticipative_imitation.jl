@@ -31,12 +31,11 @@ function train_policy!(
     anticipative_policy,
     epochs=10,
     metrics::Tuple=(),
-    maximizer_kwargs=get_state,
+    maximizer_kwargs=sample -> sample.context,
 )
     # Generate anticipative solutions as training data
     train_dataset = vcat(map(train_environments) do env
-        v, y = anticipative_policy(env; reset_env=true)
-        return y
+        return anticipative_policy(env; reset_env=true)
     end...)
 
     # Delegate to inner algorithm
@@ -62,17 +61,14 @@ Uses anticipative solutions as expert demonstrations.
 """
 function train_policy(
     algorithm::AnticipativeImitation,
-    benchmark::AbstractStochasticBenchmark{true};
+    benchmark::ExogenousDynamicBenchmark;
     dataset_size=30,
-    split_ratio=(0.3, 0.3),
     epochs=10,
     metrics::Tuple=(),
     seed=nothing,
 )
-    # Generate instances and environments
-    dataset = generate_dataset(benchmark, dataset_size)
-    train_instances, validation_instances, _ = splitobs(dataset; at=split_ratio)
-    train_environments = generate_environments(benchmark, train_instances)
+    # Generate environments
+    train_environments = generate_environments(benchmark, dataset_size; seed)
 
     # Initialize model and create policy
     model = generate_statistical_model(benchmark; seed)
@@ -80,8 +76,7 @@ function train_policy(
     policy = DFLPolicy(model, maximizer)
 
     # Define anticipative policy from benchmark
-    anticipative_policy =
-        (env; reset_env) -> generate_anticipative_solution(benchmark, env; reset_env)
+    anticipative_policy = generate_anticipative_solver(benchmark)
 
     # Train policy
     history = train_policy!(

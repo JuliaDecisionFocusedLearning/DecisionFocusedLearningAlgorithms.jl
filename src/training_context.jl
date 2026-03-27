@@ -20,7 +20,9 @@ mutable struct TrainingContext{P,F,O<:NamedTuple}
     const other_fields::O
 end
 
-function TrainingContext(; policy, epoch, maximizer_kwargs=get_info, kwargs...)
+function TrainingContext(;
+    policy, epoch, maximizer_kwargs=sample -> sample.context, kwargs...
+)
     other_fields = isempty(kwargs) ? NamedTuple() : NamedTuple(kwargs)
     return TrainingContext(policy, epoch, maximizer_kwargs, other_fields)
 end

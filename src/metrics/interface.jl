@@ -4,7 +4,7 @@ $TYPEDEF
 Abstract base type for all metrics used during training.
 
 All concrete metric types should implement:
-- `evaluate!(metric, context)` - Evaluate the metric given a training context
+- `evaluate!(metric, context)`: Evaluate the metric given a training context
 
 # See also
 - [`LossAccumulator`](@ref)
@@ -20,14 +20,14 @@ abstract type AbstractMetric end
 Evaluate the metric given the current training context.
 
 # Arguments
-- `metric::AbstractMetric` - The metric to evaluate
-- `context::TrainingContext` - Current training state (model, epoch, maximizer, etc.)
+- `metric::AbstractMetric`: The metric to evaluate
+- `context::TrainingContext`: Current training state (model, epoch, maximizer, etc.)
 
 # Returns
 Can return:
-- A single value (Float64, Int, etc.) - stored with `metric.name`
-- A `NamedTuple` - each key-value pair stored separately
-- `nothing` - skipped (e.g., periodic metrics on off-epochs)
+- A single value (Float64, Int, etc.): stored with `metric.name`
+- A `NamedTuple`: each key-value pair stored separately
+- `nothing`: skipped (e.g., periodic metrics on off-epochs)
 """
 function evaluate! end
 
@@ -89,9 +89,9 @@ This function handles three types of metric returns through multiple dispatch:
 - **nothing**: Skipped (e.g., periodic metrics on epochs when not evaluated)
 
 # Arguments
-- `history::MVHistory` - MVHistory object to store metric values
-- `metrics::Tuple` - Tuple of AbstractMetric instances to evaluate
-- `context::TrainingContext` - TrainingContext with current training state (policy, epoch, etc.)
+- `history::MVHistory`: MVHistory object to store metric values
+- `metrics::Tuple`: Tuple of AbstractMetric instances to evaluate
+- `context::TrainingContext`: TrainingContext with current training state (policy, epoch, etc.)
 
 # Examples
 ```julia

@@ -10,7 +10,6 @@ using Statistics: mean
 using UnicodePlots: lineplot
 using ValueHistories: MVHistory
 
-include("utils.jl")
 include("training_context.jl")
 
 include("metrics/interface.jl")

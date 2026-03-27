@@ -74,8 +74,8 @@ $TYPEDSIGNATURES
 Evaluate the wrapped metric only if the current epoch matches the frequency pattern.
 
 # Arguments
-- `pm::PeriodicMetric` - The periodic metric wrapper
-- `context` - TrainingContext with current epoch
+- `pm::PeriodicMetric`: The periodic metric wrapper
+- `context::TrainingContext`: TrainingContext with current epoch
 
 # Returns
 - The result of `evaluate!(pm.metric, context)` if epoch matches the pattern

@@ -22,3 +22,17 @@ function (p::DFLPolicy)(features::AbstractArray; kwargs...)
     y = p.maximizer(θ; kwargs...)
     return y
 end
+
+"""
+$TYPEDSIGNATURES
+
+Convenience overload: evaluate the optimality gap using a [`DFLPolicy`](@ref) directly,
+instead of unpacking `policy.statistical_model` and `policy.maximizer`.
+"""
+function DecisionFocusedLearningBenchmarks.compute_gap(
+    bench, dataset, policy::DFLPolicy, op=mean
+)
+    return DecisionFocusedLearningBenchmarks.compute_gap(
+        bench, dataset, policy.statistical_model, policy.maximizer, op
+    )
+end

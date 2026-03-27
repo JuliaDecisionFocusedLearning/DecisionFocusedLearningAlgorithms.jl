@@ -45,7 +45,7 @@ function train_policy!(
     train_dataset::DataLoader;
     epochs=100,
     metrics::Tuple=(),
-    maximizer_kwargs=get_info,
+    maximizer_kwargs=sample -> sample.context,
 )
     (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
     (; statistical_model, maximizer) = policy
@@ -106,7 +106,7 @@ function train_policy!(
     train_dataset::AbstractArray{<:DataSample};
     epochs=100,
     metrics::Tuple=(),
-    maximizer_kwargs=get_info,
+    maximizer_kwargs=sample -> sample.context,
 )
     data_loader = DataLoader(train_dataset; batchsize=1, shuffle=false)
     return train_policy!(
@@ -131,6 +131,7 @@ This high-level function handles all setup from the benchmark and returns a trai
 function train_policy(
     algorithm::PerturbedFenchelYoungLossImitation,
     benchmark::AbstractBenchmark;
+    target_policy=nothing,
     dataset_size=30,
     split_ratio=(0.3, 0.3),
     epochs=100,
@@ -138,8 +139,15 @@ function train_policy(
     seed=nothing,
 )
     # Generate dataset and split
-    dataset = generate_dataset(benchmark, dataset_size)
+    dataset = generate_dataset(benchmark, dataset_size; target_policy)
     train_instances, _, _ = splitobs(dataset; at=split_ratio)
+
+    if any(s -> isnothing(s.y), train_instances)
+        error(
+            "Training dataset contains unlabeled samples (y=nothing). " *
+            "Provide a `target_policy` kwarg to label samples during dataset generation.",
+        )
+    end
 
     # Initialize model and create policy
     model = generate_statistical_model(benchmark; seed)
@@ -148,7 +156,7 @@ function train_policy(
 
     # Train policy
     history = train_policy!(
-        algorithm, policy, train_instances; epochs, metrics, maximizer_kwargs=get_info
+        algorithm, policy, train_instances; epochs, metrics, maximizer_kwargs=s -> s.context
     )
 
     return history, policy

@@ -151,8 +151,8 @@ end
 Construct a FYLLossMetric for a given dataset.
 
 # Arguments
-- `dataset` - Dataset to evaluate on (should have samples with `.x`, `.y`, and `.info` fields)
-- `name::Symbol` - Identifier for the metric (default: `:fyl_loss`)
+- `dataset`: Dataset to evaluate on (should have samples with `.x`, `.y`, and `.context` fields)
+- `name::Symbol`: Identifier for the metric (default: `:fyl_loss`)
 """
 function FYLLossMetric(dataset, name::Symbol=:fyl_loss)
     return FYLLossMetric(dataset, LossAccumulator(name))
@@ -181,11 +181,11 @@ $TYPEDSIGNATURES
 Update the metric with a single loss computation.
 
 # Arguments
-- `metric::FYLLossMetric` - The metric to update
-- `loss::FenchelYoungLoss` - Loss function to use
-- `θ` - Model prediction
-- `y_target` - Target value
-- `kwargs...` - Additional arguments passed to loss function
+- `metric::FYLLossMetric`: The metric to update
+- `loss::FenchelYoungLoss`: Loss function to use
+- `θ`: Model prediction
+- `y_target`: Target value
+- `kwargs...`: Additional arguments passed to loss function
 """
 function update!(metric::FYLLossMetric, loss::FenchelYoungLoss, θ, y_target; kwargs...)
     l = loss(θ, y_target; kwargs...)
@@ -202,8 +202,8 @@ This method iterates through the dataset, computes predictions using `context.po
 and accumulates losses using `context.loss`. The dataset should be stored in the metric.
 
 # Arguments
-- `metric::FYLLossMetric` - The metric to evaluate
-- `context` - TrainingContext with `policy`, `loss`, and other fields
+- `metric::FYLLossMetric`: The metric to evaluate
+- `context::TrainingContext`: TrainingContext with `policy`, `loss`, and other fields
 """
 function evaluate!(metric::FYLLossMetric, context::TrainingContext)
     reset!(metric)
