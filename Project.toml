@@ -19,7 +19,7 @@ UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 ValueHistories = "98cad3c8-aec3-5f06-8e41-884608649ab7"
 
 [compat]
-DecisionFocusedLearningBenchmarks = "0.5.0"
+DecisionFocusedLearningBenchmarks = "0.5.0, 0.6"
 DocStringExtensions = "0.9.5"
 Flux = "0.16.9"
 InferOpt = "0.7.1"
