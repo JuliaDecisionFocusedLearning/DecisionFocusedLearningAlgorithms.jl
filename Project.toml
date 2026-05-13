@@ -1,6 +1,6 @@
 name = "DecisionFocusedLearningAlgorithms"
 uuid = "46d52364-bc3b-4fac-a992-eb1d3ef2de15"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Members of JuliaDecisionFocusedLearning and contributors"]
 
 [workspace]
