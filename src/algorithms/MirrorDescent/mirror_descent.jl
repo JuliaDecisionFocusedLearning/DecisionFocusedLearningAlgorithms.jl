@@ -66,7 +66,7 @@ function train_policy(
 
         # Generate anticipative solutions as training data
         augmented_dataset = augment_dataset(
-            algorithm.inner_algorithm, benchmark, train_dataset, model, maximizer, anticipative_solver, parametric_anticipative_solver;
+            algorithm.inner_algorithm, benchmark, train_dataset, model, anticipative_solver, parametric_anticipative_solver;
             κ = κ, perturb = perturb
         )
 
@@ -90,10 +90,9 @@ end
 
 function augment_dataset(
     algorithm::PerturbedFenchelYoungLossImitation,
-    bench::ExogenousStochasticBenchmark,
+    bench::AbstractStochasticBenchmark,
     train_dataset::AbstractArray,
     model,
-    maximizer,
     anticipative_solver,
     parametric_anticipative_solver;
     κ = 1.0,
