@@ -50,7 +50,9 @@ using ValueHistories
 
         # Create metric with stored data
         gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
-            compute_gap(benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer)
+            return compute_gap(
+                benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer
+            )
         end
 
         metrics = (val_loss_metric, epoch_metric, gap_metric)

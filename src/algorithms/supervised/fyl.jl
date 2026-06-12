@@ -74,7 +74,7 @@ function train_policy!(
         next_epoch!(context)
         for batch in train_dataset
             val, grads = Flux.withgradient(statistical_model) do m
-                mean(
+                return mean(
                     loss(m(sample.x), sample.y; maximizer_kwargs(sample)...) for
                     sample in batch
                 )

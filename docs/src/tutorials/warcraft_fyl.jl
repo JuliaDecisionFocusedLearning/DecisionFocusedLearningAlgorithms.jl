@@ -57,7 +57,7 @@ val_loss_metric = FYLLossMetric(val_data, :validation_loss)
 
 # Validation gap metric
 val_gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
-    compute_gap(benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer)
+    return compute_gap(benchmark, data, ctx.policy.statistical_model, ctx.policy.maximizer)
 end
 
 # ## Training
