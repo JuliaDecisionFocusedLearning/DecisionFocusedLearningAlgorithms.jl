@@ -19,7 +19,6 @@ Aqua = "0.8"
 DecisionFocusedLearningBenchmarks = "0.5"
 Documenter = "1"
 JuliaFormatter = "2"
-LoweredCodeUtils = "<3.6" # pin until https://github.com/aviatesk/JET.jl/issues/823 is fixed
 MLUtils = "0.4"
 Test = "1"
 ValueHistories = "0.5"
