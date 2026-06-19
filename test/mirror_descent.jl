@@ -5,14 +5,12 @@ using ValueHistories
 using Statistics: mean
 
 @testset "MirrorDescent Training" begin
-
     @testset "MirrorDescent - ContextualStochasticArgmax basic" begin
         benchmark = ContextualStochasticArgmaxBenchmark()
         algorithm = MirrorDescent()
 
         histories, policy = train_policy(
-            algorithm, benchmark;
-            dataset_size=5, epochs=2, iterations=2, seed=0
+            algorithm, benchmark; dataset_size=5, epochs=2, iterations=2, seed=0
         )
 
         @test histories isa Vector
@@ -27,8 +25,7 @@ using Statistics: mean
         algorithm = MirrorDescent()
 
         histories, policy = train_policy(
-            algorithm, benchmark;
-            dataset_size=1, epochs=2, iterations=2, seed=0
+            algorithm, benchmark; dataset_size=1, epochs=2, iterations=2, seed=0
         )
 
         @test histories isa Vector
@@ -43,8 +40,13 @@ using Statistics: mean
         algorithm = MirrorDescent()
 
         histories, policy = train_policy(
-            algorithm, benchmark;
-            dataset_size=5, epochs=2, iterations=2, seed=0, imitation_start=false
+            algorithm,
+            benchmark;
+            dataset_size=5,
+            epochs=2,
+            iterations=2,
+            seed=0,
+            imitation_start=false,
         )
 
         @test histories isa Vector
@@ -64,12 +66,17 @@ using Statistics: mean
                 y = ctx.policy.maximizer(θ; s.context...)
                 Float64(DecisionFocusedLearningBenchmarks.objective_value(benchmark, s, y))
             end
-            (val_obj = mean(vals),)
+            (val_obj=mean(vals),)
         end
 
         histories, policy = train_policy(
-            algorithm, benchmark;
-            dataset_size=20, epochs=3, iterations=5, seed=0, metrics=(val_metric,)
+            algorithm,
+            benchmark;
+            dataset_size=20,
+            epochs=3,
+            iterations=5,
+            seed=0,
+            metrics=(val_metric,),
         )
 
         val_objs = [get(histories[i], :val_obj)[2][end] for i in 1:5]
@@ -85,11 +92,15 @@ using Statistics: mean
         metrics = (FunctionMetric(ctx -> ctx.epoch, :epoch),)
 
         histories, policy = train_policy(
-            algorithm, benchmark;
-            dataset_size=5, epochs=2, iterations=2, seed=0, metrics=metrics
+            algorithm,
+            benchmark;
+            dataset_size=5,
+            epochs=2,
+            iterations=2,
+            seed=0,
+            metrics=metrics,
         )
 
         @test all(haskey(h, :epoch) for h in histories)
     end
-
 end

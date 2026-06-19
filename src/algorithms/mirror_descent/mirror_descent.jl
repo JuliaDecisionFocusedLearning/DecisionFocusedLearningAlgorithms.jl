@@ -43,9 +43,8 @@ function train_policy!(
     κ=1.0,
     metrics::Tuple=(),
     verbose::Bool=false,
-    imitation_start::Bool=true
+    imitation_start::Bool=true,
 )
-
     augmented_dataset = train_dataset
     return map(1:iterations) do n_it
         if verbose
@@ -55,8 +54,13 @@ function train_policy!(
         perturb = n_it > 1 || !imitation_start
 
         augmented_dataset = augment_dataset(
-            benchmark, augmented_dataset, policy.statistical_model, anticipative_solver, perturbed_anticipative_solver;
-            κ=κ, perturb=perturb
+            benchmark,
+            augmented_dataset,
+            policy.statistical_model,
+            anticipative_solver,
+            perturbed_anticipative_solver;
+            κ=κ,
+            perturb=perturb,
         )
 
         train_policy!(
@@ -95,8 +99,6 @@ This high-level function handles all setup from the benchmark and returns a trai
 - `context_per_instance`: number of contexts per instance. 
 """
 
-
-
 function train_policy(
     algorithm::MirrorDescent,
     benchmark::ExogenousStochasticBenchmark;
@@ -111,24 +113,47 @@ function train_policy(
     model_kwargs=(;),
     maximizer_kwargs=(;),
     solver_kwargs=(;),
-    nb_scenarios = 1,
-    context_per_instance = 1,
+    nb_scenarios=1,
+    context_per_instance=1,
 )
-    train_dataset = generate_dataset(benchmark, dataset_size; nb_scenarios=nb_scenarios, contexts_per_instance=context_per_instance, seed=seed)
+    train_dataset = generate_dataset(
+        benchmark,
+        dataset_size;
+        nb_scenarios=nb_scenarios,
+        contexts_per_instance=context_per_instance,
+        seed=seed,
+    )
 
     model = generate_statistical_model(benchmark; seed=seed, model_kwargs...)
     maximizer = generate_maximizer(benchmark; maximizer_kwargs...)
     policy = DFLPolicy(model, maximizer)
 
     anticipative_solver = generate_anticipative_solver(benchmark; solver_kwargs...)
-    parametric_anticipative_solver = generate_parametric_anticipative_solver(benchmark; solver_kwargs...)
+    parametric_anticipative_solver = generate_parametric_anticipative_solver(
+        benchmark; solver_kwargs...
+    )
     (; nb_samples, ε, threaded, seed) = algorithm.inner_algorithm
-    perturbed_anticipative_solver = PerturbedAdditive((θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...); ε=κ*ε, nb_samples=nb_samples, seed=seed, threaded=threaded)
-
+    perturbed_anticipative_solver = PerturbedAdditive(
+        (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
+        ε=κ * ε,
+        nb_samples=nb_samples,
+        seed=seed,
+        threaded=threaded,
+    )
 
     histories_per_iteration = train_policy!(
-        benchmark, algorithm, policy, train_dataset, anticipative_solver, perturbed_anticipative_solver;
-        epochs=epochs, iterations=iterations, κ=κ, metrics=metrics, verbose=verbose, imitation_start=imitation_start
+        benchmark,
+        algorithm,
+        policy,
+        train_dataset,
+        anticipative_solver,
+        perturbed_anticipative_solver;
+        epochs=epochs,
+        iterations=iterations,
+        κ=κ,
+        metrics=metrics,
+        verbose=verbose,
+        imitation_start=imitation_start,
     )
 
     return histories_per_iteration, policy
@@ -141,28 +166,42 @@ function augment_dataset(
     anticipative_solver,
     perturbed_anticipative_solver;
     κ=1.0,
-    perturb=false
+    perturb=false,
 )
     return _augment_dataset(
         Val(fieldtype(eltype(train_dataset), :y) !== Nothing),
-        bench, train_dataset, model, anticipative_solver, perturbed_anticipative_solver;
-        κ=κ, perturb=perturb
+        bench,
+        train_dataset,
+        model,
+        anticipative_solver,
+        perturbed_anticipative_solver;
+        κ=κ,
+        perturb=perturb,
     )
 end
 
 # Raw dataset (samples have no y) → create new DataSamples
 function _augment_dataset(
     ::Val{false},
-    bench, train_dataset, model, anticipative_solver, perturbed_anticipative_solver;
-    κ=1.0, perturb=false
+    bench,
+    train_dataset,
+    model,
+    anticipative_solver,
+    perturbed_anticipative_solver;
+    κ=1.0,
+    perturb=false,
 )
     return map(train_dataset) do sample
         θ = model(sample.x)
         if perturb
             if is_minimization_problem(bench)
-                y = perturbed_anticipative_solver(-κ*θ; scenario=sample.scenario, sample.context...)
+                y = perturbed_anticipative_solver(
+                    -κ * θ; scenario=sample.scenario, sample.context...
+                )
             else
-                y = perturbed_anticipative_solver(κ*θ; scenario=sample.scenario, sample.context...)
+                y = perturbed_anticipative_solver(
+                    κ * θ; scenario=sample.scenario, sample.context...
+                )
             end
         else
             y = anticipative_solver(sample.scenario; sample.context...)
@@ -174,16 +213,25 @@ end
 # Augmented dataset (samples already have y) → update y in place
 function _augment_dataset(
     ::Val{true},
-    bench, train_dataset, model, anticipative_solver, perturbed_anticipative_solver;
-    κ=1.0, perturb=false
+    bench,
+    train_dataset,
+    model,
+    anticipative_solver,
+    perturbed_anticipative_solver;
+    κ=1.0,
+    perturb=false,
 )
     for (i, sample) in enumerate(train_dataset)
         θ = model(sample.x)
         if perturb
             if is_minimization_problem(bench)
-                y = perturbed_anticipative_solver(-κ*θ; scenario=sample.scenario, sample.context...)
+                y = perturbed_anticipative_solver(
+                    -κ * θ; scenario=sample.scenario, sample.context...
+                )
             else
-                y = perturbed_anticipative_solver(κ*θ; scenario=sample.scenario, sample.context...)
+                y = perturbed_anticipative_solver(
+                    κ * θ; scenario=sample.scenario, sample.context...
+                )
             end
         else
             y = anticipative_solver(sample.scenario; sample.context...)
