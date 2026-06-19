@@ -28,11 +28,11 @@ algorithm = PerturbedFenchelYoungLossImitation(;
 validation_loss_metric = FYLLossMetric(val_data, :validation_loss)
 
 val_gap_metric = FunctionMetric(:val_gap, val_data) do ctx, data
-    compute_gap(b, data, ctx.policy.statistical_model, ctx.policy.maximizer)
+    return compute_gap(b, data, ctx.policy.statistical_model, ctx.policy.maximizer)
 end
 
 test_gap_metric = FunctionMetric(:test_gap, test_data) do ctx, data
-    compute_gap(b, data, ctx.policy.statistical_model, ctx.policy.maximizer)
+    return compute_gap(b, data, ctx.policy.statistical_model, ctx.policy.maximizer)
 end
 
 metrics = (validation_loss_metric, val_gap_metric, test_gap_metric)

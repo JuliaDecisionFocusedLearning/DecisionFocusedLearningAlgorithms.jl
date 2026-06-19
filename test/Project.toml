@@ -17,7 +17,7 @@ DecisionFocusedLearningAlgorithms = {path = ".."}
 Aqua = "0.8"
 DecisionFocusedLearningBenchmarks = "0.5"
 Documenter = "1"
-JuliaFormatter = "1"
+JuliaFormatter = "2"
 MLUtils = "0.4"
 Test = "1"
 ValueHistories = "0.5"
