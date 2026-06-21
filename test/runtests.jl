@@ -13,4 +13,8 @@ using DecisionFocusedLearningAlgorithms
     @testset "DAgger" begin
         include("dagger.jl")
     end
+
+    @testset "MirrorDescent" begin
+        include("mirror_descent.jl")
+    end
 end
