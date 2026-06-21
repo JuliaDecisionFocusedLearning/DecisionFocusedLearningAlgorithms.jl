@@ -4,6 +4,19 @@ using Test
 using ValueHistories
 using Statistics: mean
 
+function _val_obj_metric(benchmark, val_data)
+    return FunctionMetric(:val_obj, val_data) do ctx, data
+        vals = map(data) do s
+            θ = ctx.policy.statistical_model(s.x)
+            y = ctx.policy.maximizer(θ; s.context...)
+            return Float64(
+                DecisionFocusedLearningBenchmarks.objective_value(benchmark, s, y)
+            )
+        end
+        return (val_obj=mean(vals),)
+    end
+end
+
 @testset "MirrorDescent Training" begin
     @testset "MirrorDescent - ContextualStochasticArgmax basic" begin
         benchmark = ContextualStochasticArgmaxBenchmark()
@@ -104,5 +117,45 @@ using Statistics: mean
         )
 
         @test all(haskey(h, :epoch) for h in histories)
+    end
+
+    @testset "MirrorDescent - trained beats untrained (ContextualStochasticArgmax)" begin
+        benchmark = ContextualStochasticArgmaxBenchmark()
+        val_data = generate_dataset(benchmark, 50; seed=99)
+
+        histories, _ = train_policy(
+            MirrorDescent(),
+            benchmark;
+            dataset_size=20,
+            epochs=5,
+            iterations=5,
+            seed=0,
+            metrics=(_val_obj_metric(benchmark, val_data),),
+        )
+
+        obj_untrained = get(histories[1], :val_obj)[2][1]
+        obj_trained = get(histories[end], :val_obj)[2][end]
+
+        @test obj_trained > obj_untrained
+    end
+
+    @testset "MirrorDescent - trained beats untrained (StochasticVehicleScheduling)" begin
+        benchmark = StochasticVehicleSchedulingBenchmark()
+        val_data = generate_dataset(benchmark, 10; seed=99)
+
+        histories, _ = train_policy(
+            MirrorDescent(),
+            benchmark;
+            dataset_size=10,
+            epochs=5,
+            iterations=2,
+            seed=0,
+            metrics=(_val_obj_metric(benchmark, val_data),),
+        )
+
+        obj_untrained = get(histories[1], :val_obj)[2][1]
+        obj_trained = get(histories[end], :val_obj)[2][end]
+
+        @test obj_trained < obj_untrained
     end
 end
