@@ -64,9 +64,11 @@ using Statistics: mean
             vals = map(data) do s
                 θ = ctx.policy.statistical_model(s.x)
                 y = ctx.policy.maximizer(θ; s.context...)
-                Float64(DecisionFocusedLearningBenchmarks.objective_value(benchmark, s, y))
+                return Float64(
+                    DecisionFocusedLearningBenchmarks.objective_value(benchmark, s, y)
+                )
             end
-            (val_obj=mean(vals),)
+            return (val_obj=mean(vals),)
         end
 
         histories, policy = train_policy(

@@ -25,7 +25,7 @@ include("algorithms/abstract_algorithm.jl")
 include("algorithms/supervised/fyl.jl")
 include("algorithms/supervised/anticipative_imitation.jl")
 include("algorithms/supervised/dagger.jl")
-include("algorithms/MirrorDescent/mirror_descent.jl")
+include("algorithms/mirror_descent/mirror_descent.jl")
 
 export TrainingContext
 
