@@ -1,0 +1,35 @@
+name: Format
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  format-check:
+    name: JuliaFormatter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+      - name: Run JuliaFormatter
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.activate(; temp=true)
+          Pkg.add(name="JuliaFormatter", version="2")
+          using JuliaFormatter
+          if !format(".", verbose=true, overwrite=false)
+              @error "Code is not formatted. Run `julia -e 'using JuliaFormatter; format(\".\")'` locally."
+              exit(1)
+          end
