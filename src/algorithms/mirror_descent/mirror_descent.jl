@@ -82,8 +82,7 @@ $TYPEDSIGNATURES
 Train a DFLPolicy using the Mirror Descent algorithm on a provided training dataset.
 
 When `imitation_start=true`, the first iteration is a pure imitation step using
-`anticipative_solver`; subsequent iterations are the mirror descent loop using
-`perturbed_anticipative_solver`.
+`anticipative_solver`. Subsequent iterations are the mirror descent loop.
 
 # Arguments
 - `iterations=10`: total number of mirror descent iterations (includes the imitation step
@@ -101,7 +100,7 @@ function train_policy!(
     policy::DFLPolicy,
     train_dataset,
     anticipative_solver,
-    perturbed_anticipative_solver;
+    parametric_anticipative_solver;
     epochs=10,
     iterations=10,
     κ=1.0,
@@ -110,6 +109,15 @@ function train_policy!(
     imitation_start::Bool=true,
     is_minimization::Bool=true,
 )
+    (; nb_samples, ε, threaded, seed) = algorithm.inner_algorithm
+    perturbed_anticipative_solver = PerturbedAdditive(
+        (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
+        ε=κ * ε,
+        nb_samples=nb_samples,
+        seed=seed,
+        threaded=threaded,
+    )
+
     if imitation_start
         verbose && println("Imitation step")
         dataset = _augment_with_anticipative(train_dataset, anticipative_solver)
@@ -211,21 +219,12 @@ function train_policy(
 )
     policy = DFLPolicy(model, maximizer)
 
-    (; nb_samples, ε, threaded) = algorithm.inner_algorithm
-    perturbed_anticipative_solver = PerturbedAdditive(
-        (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
-        ε=κ * ε,
-        nb_samples=nb_samples,
-        seed=seed,
-        threaded=threaded,
-    )
-
     histories_per_iteration = train_policy!(
         algorithm,
         policy,
         train_dataset,
         anticipative_solver,
-        perturbed_anticipative_solver;
+        parametric_anticipative_solver;
         epochs=epochs,
         iterations=iterations,
         κ=κ,
