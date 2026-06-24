@@ -46,6 +46,7 @@ function train_policy!(
     epochs=100,
     metrics::Tuple=(),
     maximizer_kwargs=sample -> sample.context,
+    verbose=false,
 )
     (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
     (; statistical_model, maximizer) = policy
@@ -70,7 +71,7 @@ function train_policy!(
     push!(history, :training_loss, 0, evaluate!(train_loss_metric, context))
     evaluate_metrics!(history, metrics, context)
 
-    @showprogress for epoch in 1:epochs
+    @showprogress enabled = verbose for epoch in 1:epochs
         next_epoch!(context)
         for batch in train_dataset
             val, grads = Flux.withgradient(statistical_model) do m
@@ -107,6 +108,7 @@ function train_policy!(
     epochs=100,
     metrics::Tuple=(),
     maximizer_kwargs=sample -> sample.context,
+    verbose=false,
 )
     data_loader = DataLoader(train_dataset; batchsize=1, shuffle=false)
     return train_policy!(
@@ -116,5 +118,6 @@ function train_policy!(
         epochs=epochs,
         metrics=metrics,
         maximizer_kwargs=maximizer_kwargs,
+        verbose=verbose,
     )
 end
