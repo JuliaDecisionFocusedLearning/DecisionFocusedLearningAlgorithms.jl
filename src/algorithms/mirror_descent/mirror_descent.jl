@@ -82,8 +82,7 @@ $TYPEDSIGNATURES
 Train a DFLPolicy using the Mirror Descent algorithm on a provided training dataset.
 
 When `imitation_start=true`, the first iteration is a pure imitation step using
-`anticipative_solver`; subsequent iterations are the mirror descent loop using
-`perturbed_anticipative_solver`.
+`anticipative_solver`. Subsequent iterations are the mirror descent loop.
 
 # Arguments
 - `iterations=10`: total number of mirror descent iterations (includes the imitation step
