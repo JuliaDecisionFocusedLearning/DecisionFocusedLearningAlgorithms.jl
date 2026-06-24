@@ -101,7 +101,7 @@ function train_policy!(
     policy::DFLPolicy,
     train_dataset,
     anticipative_solver,
-    perturbed_anticipative_solver;
+    parametric_anticipative_solver;
     epochs=10,
     iterations=10,
     κ=1.0,
@@ -110,6 +110,15 @@ function train_policy!(
     imitation_start::Bool=true,
     is_minimization::Bool=true,
 )
+    (; nb_samples, ε, threaded, seed) = algorithm.inner_algorithm
+    perturbed_anticipative_solver = PerturbedAdditive(
+        (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
+        ε=κ * ε,
+        nb_samples=nb_samples,
+        seed=seed,
+        threaded=threaded,
+    )
+
     if imitation_start
         verbose && println("Imitation step")
         dataset = _augment_with_anticipative(train_dataset, anticipative_solver)
@@ -211,21 +220,12 @@ function train_policy(
 )
     policy = DFLPolicy(model, maximizer)
 
-    (; nb_samples, ε, threaded) = algorithm.inner_algorithm
-    perturbed_anticipative_solver = PerturbedAdditive(
-        (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
-        ε=κ * ε,
-        nb_samples=nb_samples,
-        seed=seed,
-        threaded=threaded,
-    )
-
     histories_per_iteration = train_policy!(
         algorithm,
         policy,
         train_dataset,
         anticipative_solver,
-        perturbed_anticipative_solver;
+        parametric_anticipative_solver;
         epochs=epochs,
         iterations=iterations,
         κ=κ,
