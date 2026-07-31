@@ -87,7 +87,9 @@ function train_policy!(
         # Dataset update - collect new samples using mixed policy
         new_samples = eltype(dataset)[]
         for env in train_environments
-            DecisionFocusedLearningBenchmarks.reset!(env; reset_rng=false)
+            # start a fresh episode from the wrapper's current rng state (no re-seeding),
+            # so each DAgger iteration visits new scenarios
+            DecisionFocusedLearningBenchmarks.reset!(env)
             while !is_terminated(env)
                 anticipative_solution = anticipative_policy(env; reset_env=false)
                 p = rand(rng)
