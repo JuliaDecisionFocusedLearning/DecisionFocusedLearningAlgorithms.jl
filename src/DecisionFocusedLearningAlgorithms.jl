@@ -26,6 +26,7 @@ include("algorithms/supervised/fyl.jl")
 include("algorithms/supervised/anticipative_imitation.jl")
 include("algorithms/supervised/dagger.jl")
 include("algorithms/mirror_descent/mirror_descent.jl")
+include("algorithms/mirror_descent/dagger_mirror_descent.jl")
 
 export TrainingContext
 
@@ -42,7 +43,12 @@ export AbstractMetric,
 
 export AbstractAlgorithm, AbstractImitationAlgorithm
 export PerturbedFenchelYoungLossImitation,
-    DAgger, AnticipativeImitation, train_policy!, train_policy, MirrorDescent
+    DAgger,
+    AnticipativeImitation,
+    train_policy!,
+    train_policy,
+    MirrorDescent,
+    DAggerMirrorDescent
 export AbstractPolicy, DFLPolicy
 
 end

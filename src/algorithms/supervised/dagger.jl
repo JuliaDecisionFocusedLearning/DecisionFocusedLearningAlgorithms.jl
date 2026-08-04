@@ -24,6 +24,50 @@ $TYPEDFIELDS
     max_dataset_size::Union{Int,Nothing} = nothing
 end
 
+# Helper function to collect one DAgger rollout pass over the training environments.
+#
+# Every environment starts a fresh episode; at each step the anticipative expert is queried
+# from the current state and its solution is stored as a labeled sample. The action
+# actually played is the expert one with probability `α`, the policy one otherwise.
+function _collect_dagger_samples(
+    policy::DFLPolicy,
+    train_environments,
+    anticipative_policy,
+    α,
+    rng;
+    maximizer_kwargs=sample -> sample.context,
+)
+    (; statistical_model, maximizer) = policy
+    new_samples = DataSample[]
+    for env in train_environments
+        # start a fresh episode from the wrapper's current rng state (no re-seeding),
+        # so each DAgger iteration visits new scenarios
+        DecisionFocusedLearningBenchmarks.reset!(env)
+        while !is_terminated(env)
+            anticipative_solution = anticipative_policy(env; reset_env=false)
+            p = rand(rng)
+            target = anticipative_solution[1]
+            x, _ = observe(env)
+            if size(target.x) != size(x)
+                @error "Mismatch between expert and observed state" size(target.x) size(x)
+            end
+            push!(new_samples, target)
+            if p < α
+                action = target.y
+            else
+                θ = statistical_model(x)
+                action = maximizer(θ; maximizer_kwargs(target)...)
+            end
+            step!(env, action)
+        end
+    end
+    return new_samples
+end
+
+# Helper function to cap an aggregated dataset to its most recent samples (FIFO)
+_clamp_dataset(dataset, max_dataset_size::Nothing) = dataset
+_clamp_dataset(dataset, max_dataset_size::Int) = last(dataset, max_dataset_size)
+
 """
 $TYPEDSIGNATURES
 
@@ -85,35 +129,10 @@ function train_policy!(
         epoch_offset += epochs_per_iteration
 
         # Dataset update - collect new samples using mixed policy
-        new_samples = eltype(dataset)[]
-        for env in train_environments
-            # start a fresh episode from the wrapper's current rng state (no re-seeding),
-            # so each DAgger iteration visits new scenarios
-            DecisionFocusedLearningBenchmarks.reset!(env)
-            while !is_terminated(env)
-                anticipative_solution = anticipative_policy(env; reset_env=false)
-                p = rand(rng)
-                target = anticipative_solution[1]
-                x, _ = observe(env)
-                if size(target.x) != size(x)
-                    @error "Mismatch between expert and observed state" size(target.x) size(
-                        x
-                    )
-                end
-                push!(new_samples, target)
-                if p < α
-                    action = target.y
-                else
-                    θ = statistical_model(x)
-                    action = maximizer(θ; maximizer_kwargs(target)...)
-                end
-                step!(env, action)
-            end
-        end
-        dataset = vcat(dataset, new_samples)
-        if !isnothing(algorithm.max_dataset_size)
-            dataset = last(dataset, algorithm.max_dataset_size)
-        end
+        new_samples = _collect_dagger_samples(
+            policy, train_environments, anticipative_policy, α, rng; maximizer_kwargs
+        )
+        dataset = _clamp_dataset(vcat(dataset, new_samples), algorithm.max_dataset_size)
         α *= α_decay  # Decay factor for mixing expert and learned policy
     end
 
