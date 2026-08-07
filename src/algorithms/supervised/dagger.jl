@@ -76,6 +76,10 @@ Train a DFLPolicy using the DAgger algorithm on the provided training environmen
 # Core training method
 
 Requires `train_environments` and `anticipative_policy` as keyword arguments.
+
+`logger` is called with one line per iteration and per collection pass. It defaults to
+`println`; pass a timestamping printer to make the phases of a long run legible, since
+collecting expert labels can take hours per iteration and is otherwise silent.
 """
 function train_policy!(
     algorithm::DAgger,
@@ -84,6 +88,7 @@ function train_policy!(
     anticipative_policy,
     metrics::Tuple=(),
     maximizer_kwargs=sample -> sample.context,
+    logger=println,
 )
     (; inner_algorithm, iterations, epochs_per_iteration, α_decay, seed) = algorithm
     (; statistical_model, maximizer) = policy
@@ -103,7 +108,10 @@ function train_policy!(
     epoch_offset = 0
 
     for iter in 1:iterations
-        println("DAgger iteration $iter/$iterations (α=$(round(α, digits=3)))")
+        logger(
+            "DAgger iteration $iter/$iterations (α=$(round(α, digits=3)), " *
+            "dataset=$(length(dataset)) samples)",
+        )
 
         # Train for epochs_per_iteration using inner algorithm
         iter_history = train_policy!(
@@ -128,11 +136,26 @@ function train_policy!(
 
         epoch_offset += epochs_per_iteration
 
-        # Dataset update - collect new samples using mixed policy
+        # Dataset update - collect new samples using mixed policy.
+        # Skipped on the last iteration: training happens at the *start* of an
+        # iteration, so samples collected after the last one are never trained on. The
+        # pass is pure waste, and an expensive one — it queries the expert solver at
+        # every step of every training episode.
+        iter == iterations && break
+
+        t_collect = time()
         new_samples = _collect_dagger_samples(
             policy, train_environments, anticipative_policy, α, rng; maximizer_kwargs
         )
         dataset = _clamp_dataset(vcat(dataset, new_samples), algorithm.max_dataset_size)
+        # The collection pass is the dominant cost of DAgger and grows sharply as α
+        # decays (the learned policy drifts off-distribution, and the expert MILP from
+        # those states gets much harder), so it is worth its own timing line.
+        logger(
+            "  collected $(length(new_samples)) samples in " *
+            "$(round(time() - t_collect; digits=1))s " *
+            "(dataset: $(length(dataset)) samples)",
+        )
         α *= α_decay  # Decay factor for mixing expert and learned policy
     end
 
