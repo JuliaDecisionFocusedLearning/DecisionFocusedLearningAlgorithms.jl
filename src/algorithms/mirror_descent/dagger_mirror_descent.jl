@@ -28,7 +28,8 @@ See [`DAgger`](@ref) and [`MirrorDescent`](@ref) for the two halves taken separa
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct DAggerMirrorDescent{A<:PerturbedFenchelYoungLossImitation} <: AbstractAlgorithm
+@kwdef struct DAggerMirrorDescent{A<:PerturbedFenchelYoungLossImitation} <:
+              AbstractAlgorithm
     "inner imitation algorithm for supervised learning"
     inner_algorithm::A = PerturbedFenchelYoungLossImitation()
     "decay factor for mixing expert and learned policy"
@@ -69,6 +70,7 @@ function _dagger_mirror_descent_iteration!(
         "  buffer: $(length(dataset)) states ($(length(new_samples)) from this rollout)"
     )
 
+    t_relabel = time()
     coordinated_dataset = _augment_with_sampled_scenarios(
         benchmark,
         dataset,
@@ -78,6 +80,10 @@ function _dagger_mirror_descent_iteration!(
         rng;
         κ,
         nb_scenarios,
+    )
+    verbose && println(
+        "  relabelled $(length(coordinated_dataset)) states in " *
+        "$(round(time() - t_relabel; digits=1))s",
     )
     history = train_policy!(
         algorithm.inner_algorithm,
@@ -114,7 +120,7 @@ function _dagger_mirror_descent_loop!(
     histories = MVHistory[]
     for n_it in 1:iterations
         verbose && println(
-            "DAgger mirror descent iteration $n_it / $iterations (α=$(round(α, digits=3)))"
+            "DAgger mirror descent iteration $n_it / $iterations (α=$(round(α, digits=3)))",
         )
         dataset, history = _dagger_mirror_descent_iteration!(
             algorithm,

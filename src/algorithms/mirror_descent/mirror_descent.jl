@@ -148,8 +148,9 @@ function _mirror_descent_loop_sampled(
     rng,
     use_stored_scenario,
 )
-    return map(1:md_iters) do n_it
-        verbose && println("Mirror descent iteration $n_it / $md_iters")
+    return map(1:md_iters) do md_it
+        verbose && println("Mirror descent iteration $md_it / $md_iters")
+        t_relabel = time()
         dataset = _augment_with_sampled_scenarios(
             benchmark,
             input_dataset,
@@ -160,6 +161,10 @@ function _mirror_descent_loop_sampled(
             κ,
             nb_scenarios,
             use_stored_scenario,
+        )
+        verbose && println(
+            "  relabelled $(length(dataset)) states in " *
+            "$(round(time() - t_relabel; digits=1))s",
         )
         return train_policy!(algorithm.inner_algorithm, policy, dataset; epochs, metrics)
     end
