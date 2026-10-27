@@ -8,9 +8,11 @@ Reference: <https://arxiv.org/abs/2505.04757>
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct MirrorDescent{A<:PerturbedFenchelYoungLossImitation} <: AbstractAlgorithm
+@kwdef struct MirrorDescent{A<:PerturbedFenchelYoungLossImitation,L} <: AbstractAlgorithm
     "inner imitation algorithm for supervised learning"
     inner_algorithm::A = PerturbedFenchelYoungLossImitation()
+    "law of `Z` in the relabelling (decomposition) step, that of the inner loss by default"
+    relabel_perturbation_law::L = inner_algorithm.perturbation_law
 end
 
 # ---------------------------------------------------------------------------
@@ -70,31 +72,33 @@ function _parametric_target(
 end
 
 # Wrap the benchmark's parametric anticipative solver in a perturbed layer exposing the
-# `(θ; scenario, kwargs...) -> y` interface `_parametric_target` calls it through.
+# `(θ; scenario, kwargs...) -> y` interface `_parametric_target` calls it through. The layer
+# is the one of the inner imitation loss, of size `κε` instead of `ε`, with the law of `Z`
+# of `algorithm.relabel_perturbation_law`.
 function _perturbed_parametric_solver(
-    ::ExogenousStochasticBenchmark, parametric_anticipative_solver, inner_algorithm, κ
+    ::ExogenousStochasticBenchmark, parametric_anticipative_solver, algorithm, κ
 )
-    (; nb_samples, ε, threaded, seed) = inner_algorithm
-    return PerturbedAdditive(
+    (; inner_algorithm, relabel_perturbation_law) = algorithm
+    return perturbed_layer(
+        inner_algorithm,
         (θ; scenario, kwargs...) -> parametric_anticipative_solver(θ, scenario; kwargs...);
-        ε=κ * ε,
-        nb_samples=nb_samples,
-        seed=seed,
-        threaded=threaded,
+        ε=κ * inner_algorithm.ε,
+        multiplicative=false,
+        law=relabel_perturbation_law,
     )
 end
 
 function _perturbed_parametric_solver(
-    ::AbstractDynamicBenchmark, parametric_anticipative_solver, inner_algorithm, κ
+    ::AbstractDynamicBenchmark, parametric_anticipative_solver, algorithm, κ
 )
-    (; nb_samples, ε, threaded, seed) = inner_algorithm
-    return PerturbedAdditive(
+    (; inner_algorithm, relabel_perturbation_law) = algorithm
+    return perturbed_layer(
+        inner_algorithm,
         (θ; scenario, environment, kwargs...) ->
             first(parametric_anticipative_solver(θ, scenario, environment; kwargs...)).y;
-        ε=κ * ε,
-        nb_samples=nb_samples,
-        seed=seed,
-        threaded=threaded,
+        ε=κ * inner_algorithm.ε,
+        multiplicative=false,
+        law=relabel_perturbation_law,
     )
 end
 
@@ -231,7 +235,7 @@ function train_policy!(
     rng=Random.default_rng(),
 )
     perturbed_solver = _perturbed_parametric_solver(
-        benchmark, parametric_anticipative_solver, algorithm.inner_algorithm, κ
+        benchmark, parametric_anticipative_solver, algorithm, κ
     )
 
     histories = MVHistory[]

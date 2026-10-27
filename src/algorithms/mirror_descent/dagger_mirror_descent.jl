@@ -28,10 +28,12 @@ See [`DAgger`](@ref) and [`MirrorDescent`](@ref) for the two halves taken separa
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct DAggerMirrorDescent{A<:PerturbedFenchelYoungLossImitation} <:
+@kwdef struct DAggerMirrorDescent{A<:PerturbedFenchelYoungLossImitation,L} <:
               AbstractAlgorithm
     "inner imitation algorithm for supervised learning"
     inner_algorithm::A = PerturbedFenchelYoungLossImitation()
+    "law of `Z` in the relabelling (decomposition) step, that of the inner loss by default"
+    relabel_perturbation_law::L = inner_algorithm.perturbation_law
     "decay factor for mixing expert and learned policy"
     α_decay::Float64 = 0.9
     "maximum buffer size across iterations (nothing keeps all states,
@@ -198,7 +200,7 @@ function train_policy!(
     rng=Random.default_rng(),
 )
     perturbed_solver = _perturbed_parametric_solver(
-        benchmark, parametric_anticipative_solver, algorithm.inner_algorithm, κ
+        benchmark, parametric_anticipative_solver, algorithm, κ
     )
 
     histories = MVHistory[]

@@ -4,6 +4,7 @@ using DecisionFocusedLearningBenchmarks
 using DocStringExtensions: TYPEDEF, TYPEDFIELDS, TYPEDSIGNATURES
 using Flux: Flux, Adam
 using InferOpt: InferOpt, FenchelYoungLoss, PerturbedAdditive, PerturbedMultiplicative
+using InferOpt.DifferentiableExpectations: FixedAtomsProbabilityDistribution
 using MLUtils: DataLoader
 using ProgressMeter: @showprogress
 using Random: Random, MersenneTwister
@@ -22,6 +23,7 @@ include("policies/abstract_policy.jl")
 include("policies/dfl_policy.jl")
 
 include("algorithms/abstract_algorithm.jl")
+include("algorithms/supervised/perturbation_law.jl")
 include("algorithms/supervised/fyl.jl")
 include("algorithms/supervised/anticipative_imitation.jl")
 include("algorithms/supervised/dagger.jl")
@@ -49,6 +51,7 @@ export PerturbedFenchelYoungLossImitation,
     train_policy,
     MirrorDescent,
     DAggerMirrorDescent
+export AbstractPerturbationLaw, GaussianCombinationLaw, PerturbedLaw, rand_perturbation
 export AbstractPolicy, DFLPolicy
 
 end

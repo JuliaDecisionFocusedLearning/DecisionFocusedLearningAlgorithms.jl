@@ -10,6 +10,10 @@ using DecisionFocusedLearningAlgorithms
         include("fyl.jl")
     end
 
+    @testset "Perturbation law" begin
+        include("perturbation_law.jl")
+    end
+
     @testset "DAgger" begin
         include("dagger.jl")
     end

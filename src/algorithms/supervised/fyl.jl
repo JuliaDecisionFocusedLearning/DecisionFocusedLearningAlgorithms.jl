@@ -13,7 +13,7 @@ Reference: <https://arxiv.org/abs/2002.08676>
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct PerturbedFenchelYoungLossImitation{O,S} <: AbstractImitationAlgorithm
+@kwdef struct PerturbedFenchelYoungLossImitation{O,S,L} <: AbstractImitationAlgorithm
     "number of perturbation samples"
     nb_samples::Int = 10
     "perturbation magnitude"
@@ -26,6 +26,37 @@ $TYPEDFIELDS
     seed::S = nothing
     "whether to use multiplicative perturbation (else additive)"
     use_multiplicative_perturbation::Bool = false
+    "law of the additive perturbation `Z` (`nothing`: `N(0, I)` through `PerturbedAdditive`)"
+    perturbation_law::L = nothing
+end
+
+"""
+$TYPEDSIGNATURES
+
+Perturbed layer of `algorithm` around `maximizer`, of size `ε`: `PerturbedAdditive` (or
+`PerturbedMultiplicative`) when no `perturbation_law` is set, a [`PerturbedLaw`](@ref)
+otherwise. Shared by the imitation loss and the mirror descent relabelling; `law` lets the
+relabelling use another law than the loss (see [`MirrorDescent`](@ref)).
+`multiplicative=false` forces the additive layer (mirror descent relabelling has always
+been additive).
+"""
+function perturbed_layer(
+    algorithm::PerturbedFenchelYoungLossImitation,
+    maximizer;
+    ε=algorithm.ε,
+    multiplicative::Bool=algorithm.use_multiplicative_perturbation,
+    law=algorithm.perturbation_law,
+)
+    (; nb_samples, threaded, seed) = algorithm
+    if !isnothing(law)
+        multiplicative &&
+            error("a `perturbation_law` is additive, it cannot be multiplicative")
+        return PerturbedLaw(maximizer, law; ε, nb_samples, threaded, seed)
+    elseif multiplicative
+        return PerturbedMultiplicative(maximizer; nb_samples, ε, threaded, seed)
+    else
+        return PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed)
+    end
 end
 
 """
@@ -48,15 +79,10 @@ function train_policy!(
     maximizer_kwargs=sample -> sample.context,
     verbose=false,
 )
-    (; nb_samples, ε, threaded, training_optimizer, seed) = algorithm
+    (; training_optimizer) = algorithm
     (; statistical_model, maximizer) = policy
 
-    perturbed = if algorithm.use_multiplicative_perturbation
-        PerturbedMultiplicative(maximizer; nb_samples, ε, threaded, seed)
-    else
-        PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed)
-    end
-    loss = FenchelYoungLoss(perturbed)
+    loss = FenchelYoungLoss(perturbed_layer(algorithm, maximizer))
 
     opt_state = Flux.setup(training_optimizer, statistical_model)
 
