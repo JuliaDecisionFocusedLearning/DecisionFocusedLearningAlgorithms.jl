@@ -51,24 +51,26 @@ function _sample_fresh_scenario(benchmark::AbstractDynamicBenchmark, rng, ::Data
     return generate_scenario(benchmark; rng)
 end
 
-# Solve the parametric anticipative subproblem for `sample` under `scenario`, given the
-# already-signed score `signed_θ`.
+# Keyword arguments the perturbed parametric solver is called with for `sample` under
+# `scenario`.
 # Stochastic solvers follow `(θ, scenario; context...) -> y` and need nothing else.
-function _parametric_target(
-    ::ExogenousStochasticBenchmark, perturbed_solver, signed_θ, sample, scenario
-)
-    return perturbed_solver(signed_θ; scenario=scenario, sample.context...)
+function _parametric_kwargs(::ExogenousStochasticBenchmark, sample, scenario)
+    return (; scenario=scenario, sample.context...)
 end
 
 # Dynamic solvers follow `(θ, scenario, environment; kwargs...) -> trajectory`: they take the
 # environment as a third positional argument and solve from its current state, returning the
 # whole anticipative trajectory. So we rebuild an environment sitting at the state of
 # `sample` — cheap next to the solve it feeds — and keep only the first-stage decision.
-function _parametric_target(
-    benchmark::AbstractDynamicBenchmark, perturbed_solver, signed_θ, sample, scenario
-)
+function _parametric_kwargs(benchmark::AbstractDynamicBenchmark, sample, scenario)
     environment = SeededEnvironment(build_environment(benchmark, sample, scenario))
-    return perturbed_solver(signed_θ; scenario=scenario, environment=environment)
+    return (; scenario=scenario, environment=environment)
+end
+
+# Solve the parametric anticipative subproblem for `sample` under `scenario`, given the
+# already-signed score `signed_θ`.
+function _parametric_target(benchmark, perturbed_solver, signed_θ, sample, scenario)
+    return perturbed_solver(signed_θ; _parametric_kwargs(benchmark, sample, scenario)...)
 end
 
 # Wrap the benchmark's parametric anticipative solver in a perturbed layer exposing the
@@ -110,6 +112,21 @@ end
 # or `use_stored_scenario=false`) `nb_scenarios` independent scenarios are drawn, the
 # "relaxed SAA" reading of mirror descent, growing the dataset to `nb_scenarios *
 # length(dataset)`.
+#
+# Two schedules, same targets:
+#
+# - per state (`flat=false`): one call of the perturbed layer per (sample, draw). A threaded
+#   layer maps its `nb_samples` solves `y(θ + εZₘ)` over threads, so each state waits for its
+#   slowest `Z` before the next one starts — a barrier per state, which leaves threads idle
+#   when solve times are spread out (measured: ×1.5–2.5 on the wall of a round).
+# - flat (`flat=true`, the default when the layer is threaded and of a known type): the `Z`
+#   of every state are drawn first, in the calling task, state after state and in the same
+#   interleaving with the scenario draws as the per-state loop (the layer reseeds its rng at
+#   every call, so these are exactly the atoms its own calls would draw); then all
+#   (state, `Z`) solves run on one greedy pool of threads; then each state is averaged back
+#   with the layer's own weights and summation order. Same atoms, same solves, same mean.
+#
+# `DFLA_FLAT_RELABEL=0` in the environment forces the per-state schedule (read at each call).
 function _augment_with_sampled_scenarios(
     benchmark,
     dataset,
@@ -120,7 +137,19 @@ function _augment_with_sampled_scenarios(
     κ,
     nb_scenarios,
     use_stored_scenario::Bool=true,
+    flat::Bool=_flat_relabel(perturbed_solver),
 )
+    flat && return _augment_flat(
+        benchmark,
+        dataset,
+        model,
+        perturbed_solver,
+        is_minimization,
+        rng;
+        κ,
+        nb_scenarios,
+        use_stored_scenario,
+    )
     augmented = DataSample[]
     sizehint!(augmented, nb_scenarios * length(dataset))
     for sample in dataset
@@ -132,6 +161,78 @@ function _augment_with_sampled_scenarios(
             y = _parametric_target(benchmark, perturbed_solver, signed_θ, sample, scenario)
             push!(augmented, DataSample(sample; y, extra=merge(sample.extra, (; scenario))))
         end
+    end
+    return augmented
+end
+
+# Atoms `θ + εZₘ` (with their weights) a call of the layer at `θ` would solve, drawn exactly
+# as that call draws them, and the maximizer it applies to each of them.
+function _relabel_atoms(perturbed::PerturbedLaw, θ; kwargs...)
+    return _perturbed_parameters(perturbed, θ; kwargs...)
+end
+function _relabel_atoms(perturbed::InferOpt.PerturbedOracle, θ; kwargs...)
+    return InferOpt.DifferentiableExpectations.empirical_predistribution(
+        perturbed.reinforce, θ
+    )
+end
+_relabel_maximizer(perturbed::PerturbedLaw) = perturbed.maximizer
+_relabel_maximizer(perturbed::InferOpt.PerturbedOracle) = perturbed.reinforce.f
+
+_layer_threaded(perturbed::PerturbedLaw) = perturbed.threaded
+function _layer_threaded(perturbed::InferOpt.PerturbedOracle)
+    return InferOpt.DifferentiableExpectations.is_threaded(perturbed.reinforce) == Val(true)
+end
+
+# Flat schedule only for the layers whose sampling we can replay, and only when the layer
+# was asked to thread (an unthreaded layer stays sequential).
+_flat_relabel(perturbed) = false
+function _flat_relabel(perturbed::Union{PerturbedLaw,InferOpt.PerturbedOracle})
+    return get(ENV, "DFLA_FLAT_RELABEL", "1") != "0" && _layer_threaded(perturbed)
+end
+
+function _augment_flat(
+    benchmark,
+    dataset,
+    model,
+    perturbed_solver,
+    is_minimization,
+    rng;
+    κ,
+    nb_scenarios,
+    use_stored_scenario::Bool=true,
+)
+    # 1. Sequential: score, scenario, solver kwargs and atoms of every (sample, draw), in the
+    #    order of the per-state loop, so that every rng is consumed identically.
+    jobs = map(dataset) do sample
+        θ = model(sample.x)
+        signed_θ = is_minimization ? -κ * θ : κ * θ
+        draws = use_stored_scenario && hasproperty(sample, :scenario) ? 1 : nb_scenarios
+        return map(1:draws) do _
+            scenario = _draw_scenario(benchmark, rng, sample; use_stored_scenario)
+            kwargs = _parametric_kwargs(benchmark, sample, scenario)
+            xdist = _relabel_atoms(perturbed_solver, signed_θ; kwargs...)
+            return (; sample, scenario, kwargs, xdist)
+        end
+    end
+    isempty(jobs) && return DataSample[]
+    jobs = reduce(vcat, jobs)
+    # 2. Parallel: every (job, atom) solve on one greedy pool, no barrier between states.
+    f = _relabel_maximizer(perturbed_solver)
+    pairs = [(k, m) for k in eachindex(jobs) for m in eachindex(jobs[k].xdist.atoms)]
+    ys = [Vector{Any}(undef, length(job.xdist.atoms)) for job in jobs]
+    Threads.@threads :greedy for p in pairs
+        k, m = p
+        job = jobs[k]
+        ys[k][m] = f(job.xdist.atoms[m]; job.kwargs...)
+    end
+    # 3. Average per state as the layer does: `mean(map(f, xdist))`, i.e. an unthreaded
+    #    `mapreduce(*, +, weights, atoms)` over the solves, in atom order.
+    augmented = DataSample[]
+    sizehint!(augmented, length(jobs))
+    for k in eachindex(jobs)
+        (; sample, scenario, xdist) = jobs[k]
+        y = mean(FixedAtomsProbabilityDistribution(identity.(ys[k]), xdist.weights))
+        push!(augmented, DataSample(sample; y, extra=merge(sample.extra, (; scenario))))
     end
     return augmented
 end
