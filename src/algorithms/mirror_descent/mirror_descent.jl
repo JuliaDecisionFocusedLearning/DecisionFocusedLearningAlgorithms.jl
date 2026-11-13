@@ -45,10 +45,20 @@ function _sample_fresh_scenario(benchmark::ExogenousStochasticBenchmark, rng, sa
     return generate_scenario(benchmark, rng; sample.context...)
 end
 
-# Dynamic benchmarks draw a whole episode scenario straight from the benchmark: the state
-# lives in the sample, so there is no context to spread.
-function _sample_fresh_scenario(benchmark::AbstractDynamicBenchmark, rng, ::DataSample)
-    return generate_scenario(benchmark; rng)
+# Dynamic benchmarks draw a whole episode scenario from the instance the sample's state
+# belongs to (`sample.state.config`), not from `benchmark`: with several training instances
+# `benchmark` is only one of them (`first(train_instances)` in DynamicStoreReplenishment), and
+# drawing from it relabelled every other instance's states against that instance's customer
+# preferences (bug found on 13/11/2026: 11 of the 12 eps_v2 instances had their MD targets
+# computed under another demand). Samples without a state fall back to `benchmark`.
+function _sample_fresh_scenario(benchmark::AbstractDynamicBenchmark, rng, sample::DataSample)
+    return generate_scenario(_scenario_instance(benchmark, sample); rng)
+end
+
+function _scenario_instance(benchmark, sample)
+    hasproperty(sample, :state) || return benchmark
+    state = sample.state
+    return hasproperty(state, :config) ? state.config : benchmark
 end
 
 # Keyword arguments the perturbed parametric solver is called with for `sample` under
