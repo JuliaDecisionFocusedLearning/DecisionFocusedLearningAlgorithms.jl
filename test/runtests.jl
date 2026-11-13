@@ -21,4 +21,8 @@ using DecisionFocusedLearningAlgorithms
     @testset "MirrorDescent" begin
         include("mirror_descent.jl")
     end
+
+    @testset "MirrorDescent relabelled targets" begin
+        include("relabel_target.jl")
+    end
 end

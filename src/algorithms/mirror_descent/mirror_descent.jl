@@ -13,6 +13,92 @@ $TYPEDFIELDS
     inner_algorithm::A = PerturbedFenchelYoungLossImitation()
     "law of `Z` in the relabelling (decomposition) step, that of the inner loss by default"
     relabel_perturbation_law::L = inner_algorithm.perturbation_law
+    "space in which relabelled targets average the perturbed solutions: `:y` (the mean
+    decision, historical) or `:g` (the mean of `g(y)` of the policy's `LinearMaximizer`, the
+    moment the Fenchel-Young loss compares with) — see [`GSpaceTarget`](@ref)"
+    target_space::Symbol = :y
+end
+
+# ---------------------------------------------------------------------------
+# Relabelled targets
+#
+# A relabelled target averages the solutions `y_m` of the perturbed parametric problem over
+# its atoms `θ + κεZ_m`. The Fenchel-Young loss compares it, through `g(y_true)`, with the
+# prediction side `E[g(y*(θ + εZ))]`, a mean in the feature space of the maximizer. When `g`
+# is linear (the identity of most benchmarks), `g(mean y) = mean g(y)` and the historical
+# target, the mean decision `ȳ`, is exact. When it is not, `g(ȳ)` is not that moment: the
+# dynamic replenishment `g` has a staircase block `−max(0, x − k + 1)` with a kink at every
+# integer level, so atoms deciding 2 or 6 units give `ȳ = 4` and a target that never uses
+# levels 5 and 6, while the atoms use them half the time (Jensen). The loss can then only be
+# lowered by concentrating the perturbed decisions — a systematic bias of the relabelling
+# found on 13/11/2026. `target_space = :g` stores the moment as a `GSpaceTarget` instead.
+# ---------------------------------------------------------------------------
+
+"""
+$TYPEDEF
+
+Relabelled target already expressed in the feature space of a `LinearMaximizer`
+(`argmax_y θᵀg(y) + h(y)`): the means `E[g(y_m)]` and `E[h(y_m)]` over the perturbation
+atoms. It behaves as the vector `E[g(y_m)]`, and InferOpt's Fenchel-Young losses read it
+through `apply_g` and `objective_value`, which return `E[g(y_m)]` and `⟨θ, E[g(y_m)]⟩ +
+E[h(y_m)]` instead of applying `g` and `h` to it again. Built by the relabelling of
+[`MirrorDescent`](@ref) and [`DAggerMirrorDescent`](@ref) when `target_space = :g`.
+
+# Fields
+$TYPEDFIELDS
+"""
+struct GSpaceTarget{T<:Real,V<:AbstractVector{T}} <: AbstractVector{T}
+    "mean of `g(y_m)` over the atoms"
+    g::V
+    "mean of `h(y_m)` over the atoms"
+    h::T
+end
+
+Base.size(t::GSpaceTarget) = size(t.g)
+Base.getindex(t::GSpaceTarget, i::Int) = t.g[i]
+Base.IndexStyle(::Type{<:GSpaceTarget}) = IndexLinear()
+
+# Both the `LinearMaximizer` methods and the generic ones (oracles `argmax_y θᵀy`, where
+# `g` is the identity) of InferOpt, so that no call is ambiguous.
+InferOpt.apply_g(::InferOpt.LinearMaximizer, t::GSpaceTarget; kwargs...) = t.g
+InferOpt.apply_g(::Any, t::GSpaceTarget; kwargs...) = t.g
+function InferOpt.objective_value(::InferOpt.LinearMaximizer, θ, t::GSpaceTarget; kwargs...)
+    return sum(θ .* t.g) + t.h
+end
+InferOpt.objective_value(::Any, θ, t::GSpaceTarget; kwargs...) = sum(θ .* t.g) + t.h
+
+_h_value(maximizer::InferOpt.LinearMaximizer, y; kwargs...) = maximizer.h(y; kwargs...)
+_h_value(::Any, ::Any; kwargs...) = 0.0
+
+"""
+    _relabel_target(ys, weights, target_space, maximizer, maximizer_kwargs)
+
+Relabelled target from the solutions `ys` of the perturbation atoms, of weights `weights`:
+the mean decision for `target_space = :y` (bit-identical to the historical relabelling),
+the [`GSpaceTarget`](@ref) of the means of `g(y)` and `h(y)` of `maximizer` — the policy's,
+the one the loss applies `g` with — under `maximizer_kwargs` for `:g`.
+"""
+function _relabel_target(ys, weights, target_space::Symbol, maximizer, maximizer_kwargs)
+    if target_space === :y
+        return mean(FixedAtomsProbabilityDistribution(identity.(ys), weights))
+    end
+    target_space === :g ||
+        throw(ArgumentError("target_space must be :y or :g, got :$target_space"))
+    isnothing(maximizer) &&
+        throw(ArgumentError("target_space = :g needs the maximizer of the policy"))
+    gs = [
+        collect(Float64, InferOpt.apply_g(maximizer, y; maximizer_kwargs...)) for y in ys
+    ]
+    hs = [Float64(_h_value(maximizer, y; maximizer_kwargs...)) for y in ys]
+    g = mean(FixedAtomsProbabilityDistribution(gs, weights))
+    h = sum(w * hm for (w, hm) in zip(weights, hs))
+    return GSpaceTarget(g, Float64(h))
+end
+
+function _check_target_space(target_space::Symbol)
+    target_space in (:y, :g) ||
+        throw(ArgumentError("target_space must be :y or :g, got :$target_space"))
+    return target_space
 end
 
 # ---------------------------------------------------------------------------
@@ -137,6 +223,10 @@ end
 #   with the layer's own weights and summation order. Same atoms, same solves, same mean.
 #
 # `DFLA_FLAT_RELABEL=0` in the environment forces the per-state schedule (read at each call).
+#
+# `target_space` (`:y` or `:g`), `target_maximizer` (the policy's maximizer, needed for `:g`)
+# and `maximizer_kwargs` (its keyword arguments for a sample, as in the inner loss) set how
+# the solutions of the atoms are averaged into a target, see [`_relabel_target`](@ref).
 function _augment_with_sampled_scenarios(
     benchmark,
     dataset,
@@ -148,7 +238,11 @@ function _augment_with_sampled_scenarios(
     nb_scenarios,
     use_stored_scenario::Bool=true,
     flat::Bool=_flat_relabel(perturbed_solver),
+    target_space::Symbol=:y,
+    target_maximizer=nothing,
+    maximizer_kwargs=sample -> sample.context,
 )
+    _check_target_space(target_space)
     flat && return _augment_flat(
         benchmark,
         dataset,
@@ -159,6 +253,9 @@ function _augment_with_sampled_scenarios(
         κ,
         nb_scenarios,
         use_stored_scenario,
+        target_space,
+        target_maximizer,
+        maximizer_kwargs,
     )
     augmented = DataSample[]
     sizehint!(augmented, nb_scenarios * length(dataset))
@@ -168,7 +265,20 @@ function _augment_with_sampled_scenarios(
         draws = use_stored_scenario && hasproperty(sample, :scenario) ? 1 : nb_scenarios
         for _ in 1:draws
             scenario = _draw_scenario(benchmark, rng, sample; use_stored_scenario)
-            y = _parametric_target(benchmark, perturbed_solver, signed_θ, sample, scenario)
+            y = if target_space === :y
+                # historical path: one call of the layer, which averages the decisions
+                _parametric_target(benchmark, perturbed_solver, signed_θ, sample, scenario)
+            else
+                # the same atoms as that call (the layer reseeds at every call), solved one
+                # by one so that each solution can go through `g`
+                kwargs = _parametric_kwargs(benchmark, sample, scenario)
+                xdist = _relabel_atoms(perturbed_solver, signed_θ; kwargs...)
+                f = _relabel_maximizer(perturbed_solver)
+                ys = map(η -> f(η; kwargs...), xdist.atoms)
+                _relabel_target(
+                    ys, xdist.weights, target_space, target_maximizer, maximizer_kwargs(sample)
+                )
+            end
             push!(augmented, DataSample(sample; y, extra=merge(sample.extra, (; scenario))))
         end
     end
@@ -210,6 +320,9 @@ function _augment_flat(
     κ,
     nb_scenarios,
     use_stored_scenario::Bool=true,
+    target_space::Symbol=:y,
+    target_maximizer=nothing,
+    maximizer_kwargs=sample -> sample.context,
 )
     # 1. Sequential: score, scenario, solver kwargs and atoms of every (sample, draw), in the
     #    order of the per-state loop, so that every rng is consumed identically.
@@ -236,12 +349,15 @@ function _augment_flat(
         ys[k][m] = f(job.xdist.atoms[m]; job.kwargs...)
     end
     # 3. Average per state as the layer does: `mean(map(f, xdist))`, i.e. an unthreaded
-    #    `mapreduce(*, +, weights, atoms)` over the solves, in atom order.
+    #    `mapreduce(*, +, weights, atoms)` over the solves, in atom order — of the decisions
+    #    (`:y`) or of their `g` (`:g`), see `_relabel_target`.
     augmented = DataSample[]
     sizehint!(augmented, length(jobs))
     for k in eachindex(jobs)
         (; sample, scenario, xdist) = jobs[k]
-        y = mean(FixedAtomsProbabilityDistribution(identity.(ys[k]), xdist.weights))
+        y = _relabel_target(
+            ys[k], xdist.weights, target_space, target_maximizer, maximizer_kwargs(sample)
+        )
         push!(augmented, DataSample(sample; y, extra=merge(sample.extra, (; scenario))))
     end
     return augmented
@@ -276,6 +392,10 @@ function _mirror_descent_loop_sampled(
             κ,
             nb_scenarios,
             use_stored_scenario,
+            # the inner loss below applies `g` with `policy.maximizer` under the default
+            # `maximizer_kwargs` (`sample.context`): the `:g` targets use the same ones
+            target_space=algorithm.target_space,
+            target_maximizer=policy.maximizer,
         )
         verbose && println(
             "  relabelled $(length(dataset)) states in " *
@@ -296,7 +416,7 @@ stochastic benchmarks, anticipative trajectories for dynamic ones). Mirror desce
 iterations never need `train_dataset` pre-labeled anyway, since every sample gets relabeled
 by solving the perturbed parametric anticipative problem under a scenario — reused from the
 sample when `use_stored_scenario=true` (the default) and present, otherwise drawn fresh from
-`benchmark`.
+`benchmark` (for a dynamic benchmark, from the instance of the sample's state).
 
 Everything benchmark-specific is dispatched on the type of `benchmark`, so
 `parametric_anticipative_solver` is used with the calling convention of its own benchmark
@@ -304,7 +424,7 @@ family and needs no adapter:
 
 | | stochastic benchmark | dynamic benchmark |
 |---|---|---|
-| fresh scenario drawn as | `generate_scenario(benchmark, rng; sample.context...)` | `generate_scenario(benchmark; rng)` |
+| fresh scenario drawn as | `generate_scenario(benchmark, rng; sample.context...)` | `generate_scenario(sample.state.config; rng)` |
 | solver called as | `(θ, scenario; sample.context...) -> y` | `(θ, scenario, environment) -> trajectory` |
 
 Dynamic solvers solve from the current state of the environment they are given, so each
@@ -345,6 +465,7 @@ function train_policy!(
     is_minimization::Bool=is_minimization_problem(benchmark),
     rng=Random.default_rng(),
 )
+    _check_target_space(algorithm.target_space)
     perturbed_solver = _perturbed_parametric_solver(
         benchmark, parametric_anticipative_solver, algorithm, κ
     )

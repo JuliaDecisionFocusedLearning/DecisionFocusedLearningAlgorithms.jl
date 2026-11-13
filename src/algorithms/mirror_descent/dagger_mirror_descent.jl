@@ -39,6 +39,9 @@ $TYPEDFIELDS
     "maximum buffer size across iterations (nothing keeps all states,
     an integer caps to the most recent N states via FIFO)"
     max_dataset_size::Union{Int,Nothing} = nothing
+    "space in which relabelled targets average the perturbed solutions, `:y` or `:g`, as in
+    [`MirrorDescent`](@ref) — see [`GSpaceTarget`](@ref)"
+    target_space::Symbol = :y
 end
 
 # One DAgger + mirror descent iteration:
@@ -82,6 +85,9 @@ function _dagger_mirror_descent_iteration!(
         rng;
         κ,
         nb_scenarios,
+        target_space=algorithm.target_space,
+        target_maximizer=policy.maximizer,
+        maximizer_kwargs,
     )
     verbose && println(
         "  relabelled $(length(coordinated_dataset)) states in " *
@@ -199,6 +205,7 @@ function train_policy!(
     is_minimization::Bool=is_minimization_problem(benchmark),
     rng=Random.default_rng(),
 )
+    _check_target_space(algorithm.target_space)
     perturbed_solver = _perturbed_parametric_solver(
         benchmark, parametric_anticipative_solver, algorithm, κ
     )

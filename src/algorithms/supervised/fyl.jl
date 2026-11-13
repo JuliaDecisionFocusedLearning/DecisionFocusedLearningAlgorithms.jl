@@ -13,7 +13,7 @@ Reference: <https://arxiv.org/abs/2002.08676>
 # Fields
 $TYPEDFIELDS
 """
-@kwdef struct PerturbedFenchelYoungLossImitation{O,S,L} <: AbstractImitationAlgorithm
+@kwdef struct PerturbedFenchelYoungLossImitation{O,S,L,R} <: AbstractImitationAlgorithm
     "number of perturbation samples"
     nb_samples::Int = 10
     "perturbation magnitude"
@@ -22,12 +22,22 @@ $TYPEDFIELDS
     threaded::Bool = true
     "optimizer used for training"
     training_optimizer::O = Adam()
-    "random seed for perturbations"
+    "random seed for perturbations. ⚠ The layers RESET their rng to it before EVERY call
+    (InferOpt semantics): every call — every sample, epoch and mirror descent iteration, and
+    the relabelling of mirror descent, which shares it — then sees the same perturbations, and
+    with the default rng the global `Random.default_rng()` is reset each time. For fresh,
+    reproducible perturbations leave `seed = nothing` and set `rng` instead."
     seed::S = nothing
     "whether to use multiplicative perturbation (else additive)"
     use_multiplicative_perturbation::Bool = false
     "law of the additive perturbation `Z` (`nothing`: `N(0, I)` through `PerturbedAdditive`)"
     perturbation_law::L = nothing
+    "random number generator of the perturbations (`nothing`: the layer's default,
+    `Random.default_rng()`). A dedicated one (e.g. `Xoshiro(0)`) with `seed = nothing` gives
+    fresh perturbations at every call from a stream no other code touches. It is shared by
+    every layer built from this algorithm (the loss, and the relabelling of mirror descent):
+    they draw from it one call at a time, never concurrently."
+    rng::R = nothing
 end
 
 """
@@ -47,15 +57,17 @@ function perturbed_layer(
     multiplicative::Bool=algorithm.use_multiplicative_perturbation,
     law=algorithm.perturbation_law,
 )
-    (; nb_samples, threaded, seed) = algorithm
+    (; nb_samples, threaded, seed, rng) = algorithm
+    # `rng = nothing` keeps each layer's own default (`Random.default_rng()`)
+    rng_kw = isnothing(rng) ? (;) : (; rng)
     if !isnothing(law)
         multiplicative &&
             error("a `perturbation_law` is additive, it cannot be multiplicative")
-        return PerturbedLaw(maximizer, law; ε, nb_samples, threaded, seed)
+        return PerturbedLaw(maximizer, law; ε, nb_samples, threaded, seed, rng_kw...)
     elseif multiplicative
-        return PerturbedMultiplicative(maximizer; nb_samples, ε, threaded, seed)
+        return PerturbedMultiplicative(maximizer; nb_samples, ε, threaded, seed, rng_kw...)
     else
-        return PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed)
+        return PerturbedAdditive(maximizer; nb_samples, ε, threaded, seed, rng_kw...)
     end
 end
 
